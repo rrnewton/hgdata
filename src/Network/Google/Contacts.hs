@@ -19,32 +19,38 @@ module Network.Google.Contacts (
 ) where
 
 
-import Control.Monad ((>>), (<=<), liftM)
+import Control.Monad ((<=<), (>>), liftM)
+import Crypto.GnuPG (decrypt, encrypt)
+import Data.ByteString.Util (lbsToS)
 import Data.List (stripPrefix)
-import Data.Maybe (catMaybes, fromJust, isJust)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import Crypto.GnuPG
-import Network.Google (AccessToken, makeRequest)
-import Network.HTTP.Conduit (Request, def, httpLbs, responseBody, withManager)
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import Text.XML.Light --(Element, filterChildren, parseXMLDoc)
+import Data.Maybe (catMaybes, fromJust)
+import Network.Google (AccessToken, doRequest, makeRequest, makeRequestValue)
+import Network.HTTP.Conduit (Request(..), def, httpLbs, responseBody, withManager)
+import Text.XML.Light (Element, elChildren, filterChildName, parseXMLDoc, qName, strContent)
 
 
-listContacts :: AccessToken -> IO String
+contactsHost :: String
+contactsHost = "www.google.com"
+
+
+contactsApi :: (String, String)
+contactsApi = ("Gdata-version", "3.0")
+
+
+listContacts :: AccessToken -> IO Element
 listContacts accessToken =
   do
     let
-      lbsToS :: LBS.ByteString -> String
-      lbsToS = T.unpack . T.decodeUtf8 . BS.concat . LBS.toChunks
       request = listContactsRequest accessToken
-    response <- withManager $ httpLbs request
-    return $ lbsToS $ responseBody response
+    doRequest request
 
 
 listContactsRequest :: AccessToken -> Request m
-listContactsRequest = makeRequest "/m8/feeds/contacts/default/full/"
+listContactsRequest accessToken =
+  (makeRequest accessToken contactsApi "GET" (contactsHost, "/m8/feeds/contacts/default/full/"))
+  {
+    queryString = makeRequestValue "?max-results=100000"
+  }
 
 
 extractPasswords :: [String] -> String -> IO String

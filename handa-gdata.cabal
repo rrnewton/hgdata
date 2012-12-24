@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.0.1
+version: 0.0.2
 cabal-version: >=1.2
 build-type: Simple
 license: AllRightsReserved
@@ -8,10 +8,14 @@ description:
 data-dir: ""
  
 executable hgdata
-    build-depends: base -any, bytestring -any, case-insensitive -any,
-                   cmdargs -any, http-conduit -any, process -any, text -any, xml -any
+    build-depends: base -any, base64-bytestring -any, binary -any,
+                   bytestring -any, case-insensitive -any, cmdargs -any,
+                   http-conduit -any, process -any, pureMD5 -any, resourcet -any,
+                   text -any, xml -any
     main-is: Main.hs
     buildable: True
     hs-source-dirs: src
-    other-modules: Network.Google Network.Google.Contacts Crypto.GnuPG
+    other-modules: Network.Google Network.Google.Contacts
+                   Network.Google.Storage Network.Google.Storage.Encrypted
+                   Crypto.GnuPG Crypto.MD5 Data.ByteString.Util
  
