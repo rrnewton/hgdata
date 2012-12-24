@@ -1,0 +1,17 @@
+name: handa-gdata
+version: 0.0.1
+cabal-version: >=1.2
+build-type: Simple
+license: AllRightsReserved
+license-file: ""
+description:  
+data-dir: ""
+ 
+executable hgdata
+    build-depends: base -any, bytestring -any, case-insensitive -any,
+                   cmdargs -any, http-conduit -any, process -any, text -any, xml -any
+    main-is: Main.hs
+    buildable: True
+    hs-source-dirs: src
+    other-modules: Network.Google Network.Google.Contacts Crypto.GnuPG
+ 
