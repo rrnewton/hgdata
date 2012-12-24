@@ -29,6 +29,7 @@ import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractPasswords, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
 import Network.Google.Storage (deleteObject, getBucket, getObject, putObject)
+import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
 import System.Console.CmdArgs
 import Text.XML.Light (ppTopElement)
 
@@ -66,6 +67,7 @@ data GData =
     , bucket :: String
     , key :: String
     , output :: FilePath
+    , decrypt :: Bool
     }
   | SPut {
       accessToken :: String
@@ -74,6 +76,7 @@ data GData =
     , key :: String
     , input :: FilePath
     , acl :: String
+    , encrypt :: [String]
     }
   | SDelete {
       accessToken :: String
@@ -150,6 +153,7 @@ sget = SGet
   , bucket = def &= typ "<<bucket name>>" &= argPos 2
   , key = def &= typ "<<key name>" &= argPos 3
   , output = def &= typ "<<output file>>" &= argPos 4
+  , decrypt = def &= typ "whether to decrypt the object"
   }
     &= help "Get an object from a Google Storage bucket."
 
@@ -163,6 +167,7 @@ sput = SPut
   , key = def &= typ "<<key name>" &= argPos 3
   , input = def &= typ "<<input file>>" &= argPos 4
   , acl = def &= typ "<<access control>>" &= argPos 5 &= opt "private"
+  , encrypt = def &= typ "<<recipient for which to encrypt the object>>"
   }
     &= help "Put an object into a Google Storage bucket."
 
@@ -201,14 +206,17 @@ dispatch (SList accessToken projectId bucket xmlOutput) =
   do
     result <- getBucket projectId (toAccessToken accessToken) bucket
     writeFile xmlOutput $ ppTopElement result
-dispatch (SGet accessToken projectId bucket key output) =
+dispatch (SGet accessToken projectId bucket key output decrypt) =
   do
-    result <- getObject projectId (toAccessToken accessToken) bucket key
+    let getter = if decrypt then getEncryptedObject else getObject
+    result <- getter projectId (toAccessToken accessToken) bucket key
     LBS.writeFile output result
-dispatch (SPut accessToken projectId bucket key input acl) =
+dispatch (SPut accessToken projectId bucket key input acl recipients) =
   do
+    print recipients
+    let putter = if null recipients then putObject else putEncryptedObject recipients
     bytes <- LBS.readFile input
-    putObject projectId (toAccessToken accessToken) bucket key (read acl) Nothing bytes
+    putter projectId (toAccessToken accessToken) bucket key (read acl) Nothing bytes
     return ()
 dispatch (SDelete accessToken projectId bucket key) =
   do
