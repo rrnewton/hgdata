@@ -33,7 +33,7 @@ import Data.CaseInsensitive as CI (CI(..), mk)
 import Data.List (intercalate)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, responseBody, withManager)
-import Text.JSON -- (JSValue(..), JSObject(..), Result(..), decode, valFromObj)
+import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
 
 
 data OAuth2Client = OAuth2Client
