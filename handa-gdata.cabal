@@ -8,14 +8,15 @@ description:
 data-dir: ""
  
 executable hgdata
-    build-depends: base -any, base64-bytestring -any, binary -any,
-                   bytestring -any, case-insensitive -any, cmdargs -any,
-                   http-conduit -any, process -any, pureMD5 -any, resourcet -any,
-                   text -any, xml -any
+    build-depends: HTTP -any, base -any, base64-bytestring -any,
+                   binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
+                   http-conduit -any, json -any, process -any, pureMD5 -any,
+                   resourcet -any, text -any, xml -any
     main-is: Main.hs
     buildable: True
     hs-source-dirs: src
     other-modules: Network.Google Network.Google.Contacts
-                   Network.Google.Storage Network.Google.Storage.Encrypted
-                   Crypto.GnuPG Crypto.MD5 Data.ByteString.Util
+                   Network.Google.Storage Network.Google.OAuth2
+                   Network.Google.Storage.Encrypted Crypto.GnuPG Crypto.MD5
+                   Data.ByteString.Util
  

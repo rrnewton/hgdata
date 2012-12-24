@@ -24,15 +24,32 @@ module Main (
 import Control.Monad (liftM)
 import Data.Data(Data(..))
 import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
+import Data.Maybe (catMaybes)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractPasswords, listContacts)
+import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
 import Network.Google.Storage (deleteObject, getBucket, getObject, putObject)
 import System.Console.CmdArgs
 import Text.XML.Light (ppTopElement)
 
 
 data GData =
-    Contacts {
+    OAuth2Url {
+      clientId :: String
+   }
+  | OAuth2Exchange {
+      clientId :: String
+    , clientSecret :: String
+    , code :: String
+    , tokenFile :: FilePath
+  }
+  | OAuth2Refresh {
+      clientId :: String
+    , clientSecret :: String
+    , refreshToken :: String
+    , tokenFile :: FilePath
+  }
+  | Contacts {
       accessToken :: String
     , xmlOutput :: FilePath
     , passwordOutput :: FilePath
@@ -69,9 +86,39 @@ data GData =
 
 gData :: GData
 gData =
-  modes [contacts, slist, sget, sput, sdelete]
+  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete]
     &= summary "GData v0.0.2, by B. W. Bush (b.w.bush@acm.org), CC0 1.0 Universal license."
     &= help "Process Google data.  See <http://...> for more information."
+
+
+oAuth2Url :: GData
+oAuth2Url = OAuth2Url
+  {
+    clientId = def &= typ "<<client ID>>" &= argPos 0
+  }
+    &= help "Generate an OAuth 2 URL."
+
+
+oAuth2Exchange :: GData
+oAuth2Exchange = OAuth2Exchange
+  {
+    clientId = def &= typ "<<client ID>>" &= argPos 0
+  , clientSecret = def &= typ "<<client secret>>" &= argPos 2
+  , code = def &= typ "<<exchange code>>" &= argPos 3
+  , tokenFile = def &= typ "<<token file>>" &= argPos 4 &= opt "/dev/stdout"
+  }
+    &= help "Exchange an OAuth 2 code for tokens."
+
+
+oAuth2Refresh :: GData
+oAuth2Refresh = OAuth2Refresh
+  {
+    clientId = def &= typ "<<client ID>>" &= argPos 0
+  , clientSecret = def &= typ "<<client secret>>" &= argPos 2
+  , refreshToken = def &= typ "<<refresh token>>" &= argPos 3
+  , tokenFile = def &= typ "<<token file>>" &= argPos 4 &= opt "/dev/stdout"
+  }
+    &= help "Exchange an OAuth 2 code for tokens."
 
 
 contacts :: GData
@@ -132,6 +179,18 @@ sdelete = SDelete
 
 
 dispatch :: GData -> IO ()
+dispatch (OAuth2Url clientId) =
+  do
+   putStrLn $ OA2.formUrl (OA2.OAuth2Client clientId undefined) $
+      catMaybes $ map (flip lookup OA2.googleScopes) ["Google Cloud Storage", "Contacts"]
+dispatch (OAuth2Exchange clientId clientSecret exchangeCode tokenFile) =
+  do
+    tokens <- OA2.exchangeCode (OA2.OAuth2Client clientId clientSecret) exchangeCode
+    writeFile tokenFile $ show tokens
+dispatch (OAuth2Refresh clientId clientSecret refreshToken tokenFile) =
+  do
+    tokens <- OA2.refreshTokens (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined)
+    writeFile tokenFile $ show tokens
 dispatch (Contacts accessToken xmlOutput passwordOutput) =
   do
     contacts <- liftM ppTopElement . listContacts $ toAccessToken accessToken
