@@ -81,7 +81,6 @@ makeHost bucket = bucket ++ "." ++ storageHost
 
 
 makePath :: String -> String
--- FIXME: It seems that some unicode key names are not encoded correctly.
 makePath = ('/' :) . concat . intersperse "/" . map urlEncode . separate '/'
 
 
@@ -116,7 +115,6 @@ getBucket projectId bucket accessToken =
 
 getBucket' :: Maybe String -> String -> String -> AccessToken -> IO [Element]
 getBucket' marker projectId bucket accessToken =
-  -- FIXME: If a series of requests takes too long, it is possible the token might expire before they have all completed. We should really refresh the token if needed, in order to avoid this.
   do
     let
       request =

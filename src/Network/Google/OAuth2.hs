@@ -123,7 +123,6 @@ decodeTokens value =
   do
     let
       (!) = flip valFromObj
-      -- TODO: There must be a better way to extract a Rational from a JSValue.
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" value
     accessToken <- value ! "access_token"
@@ -153,7 +152,6 @@ decodeTokens' tokens value =
   do
     let
       (!) = flip valFromObj
-      -- TODO: There must be a better way to extract a Rational from a JSValue.
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" value
     accessToken <- value ! "access_token"
@@ -213,7 +211,6 @@ validateTokens tokens =
     response <- withManager $ httpLbs request
     let
       (Ok result) = decode . lbsToS $ responseBody response
-      -- TODO: There must be a better way to extract a Rational from a JSValue.
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" result
     return expiresIn'

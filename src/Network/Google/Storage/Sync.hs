@@ -23,7 +23,6 @@ module Network.Google.Storage.Sync (
 
 import Control.Exception (SomeException, handle)
 import Control.Monad (filterM, liftM)
-import Control.Monad.State (StateT)
 import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
@@ -104,10 +103,6 @@ sync' lister putter deleter client tokens directory =
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- walkDeleter client tokenClock' deleter deletedObjects
     return ()
-
-
--- TODO: Change the functions for putting and deleting to using stacked token state with IO.
-type Syncer a = StateT OAuth2Tokens IO a
 
 
 walkPutter :: OAuth2Client -> TokenClock -> FilePath -> Putter -> [ObjectMetadata] -> IO TokenClock
