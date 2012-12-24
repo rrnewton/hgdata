@@ -34,7 +34,7 @@ import System.Console.CmdArgs
 import Text.XML.Light (ppTopElement)
 
 
-data GData =
+data HGData =
     OAuth2Url {
       clientId :: String
    }
@@ -87,14 +87,14 @@ data GData =
       deriving (Show, Data, Typeable)
 
 
-gData :: GData
-gData =
+hgData :: HGData
+hgData =
   modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete]
-    &= summary "GData v0.0.2, by B. W. Bush (b.w.bush@acm.org), CC0 1.0 Universal license."
+    &= summary "hGData v0.0.2, by B. W. Bush (b.w.bush@acm.org), CC0 1.0 Universal license."
     &= help "Process Google data.  See <http://...> for more information."
 
 
-oAuth2Url :: GData
+oAuth2Url :: HGData
 oAuth2Url = OAuth2Url
   {
     clientId = def &= typ "<<client ID>>" &= argPos 0
@@ -102,7 +102,7 @@ oAuth2Url = OAuth2Url
     &= help "Generate an OAuth 2 URL."
 
 
-oAuth2Exchange :: GData
+oAuth2Exchange :: HGData
 oAuth2Exchange = OAuth2Exchange
   {
     clientId = def &= typ "<<client ID>>" &= argPos 0
@@ -113,7 +113,7 @@ oAuth2Exchange = OAuth2Exchange
     &= help "Exchange an OAuth 2 code for tokens."
 
 
-oAuth2Refresh :: GData
+oAuth2Refresh :: HGData
 oAuth2Refresh = OAuth2Refresh
   {
     clientId = def &= typ "<<client ID>>" &= argPos 0
@@ -124,7 +124,7 @@ oAuth2Refresh = OAuth2Refresh
     &= help "Exchange an OAuth 2 code for tokens."
 
 
-contacts :: GData
+contacts :: HGData
 contacts = Contacts
   {
     accessToken = def &= typ "<<access token>>" &= argPos 0
@@ -134,7 +134,7 @@ contacts = Contacts
     &= help "Download Google Contacts."
 
 
-slist :: GData
+slist :: HGData
 slist = SList
   {
     accessToken = def &= typ "<<access token>>" &= argPos 0
@@ -145,7 +145,7 @@ slist = SList
     &= help "List objects in a Google Storage bucket."
 
 
-sget :: GData
+sget :: HGData
 sget = SGet
   {
     accessToken = def &= typ "<<access token>>" &= argPos 0
@@ -158,7 +158,7 @@ sget = SGet
     &= help "Get an object from a Google Storage bucket."
 
 
-sput :: GData
+sput :: HGData
 sput = SPut
   {
     accessToken = def &= typ "<<access token>>" &= argPos 0
@@ -172,7 +172,7 @@ sput = SPut
     &= help "Put an object into a Google Storage bucket."
 
 
-sdelete :: GData
+sdelete :: HGData
 sdelete = SDelete
   {
     accessToken = def &= typ "<<access token>>" &= argPos 0
@@ -183,7 +183,7 @@ sdelete = SDelete
     &= help "Delete an object from a Google Storage bucket."
 
 
-dispatch :: GData -> IO ()
+dispatch :: HGData -> IO ()
 dispatch (OAuth2Url clientId) =
   do
    putStrLn $ OA2.formUrl (OA2.OAuth2Client clientId undefined) $
@@ -227,5 +227,5 @@ dispatch (SDelete accessToken projectId bucket key) =
 main :: IO ()
 main =
   do
-    command <- cmdArgs gData
+    command <- cmdArgs hgData
     dispatch command
