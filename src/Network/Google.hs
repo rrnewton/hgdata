@@ -20,6 +20,7 @@ module Network.Google (
   AccessToken
 , appendBody
 , appendHeaders
+, appendQuery
 , doRequest
 , makeProjectRequest
 , makeRequest
@@ -29,12 +30,14 @@ module Network.Google (
 
 
 import Control.Monad.Trans.Resource (ResourceT)
+import Data.List (intersperse)
 import Data.Maybe (fromJust)
 import Data.ByteString.Util (lbsToS)
 import Data.ByteString as BS (ByteString)
-import Data.ByteString.Char8 as BS8 (ByteString, append, pack)
+import Data.ByteString.Char8 as BS8 (ByteString, append, pack, unpack)
 import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
 import Data.CaseInsensitive as CI (CI(..), mk)
+import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, responseBody, withManager)
 import Text.XML.Light (Element, parseXMLDoc)
 
@@ -138,3 +141,18 @@ appendBody bytes request =
   request {
     requestBody = RequestBodyLBS bytes
   }
+
+
+appendQuery :: [(String, String)] -> Request m -> Request m
+appendQuery query request =
+  let
+    makeParameter :: (String, String) -> String
+    makeParameter (k, v) = k ++ "=" ++ urlEncode v
+    query' :: String
+    query' = concat $ intersperse "&" $ map makeParameter query
+  in
+    request
+      {
+        queryString = BS8.pack $ "?" ++ query'
+      }
+

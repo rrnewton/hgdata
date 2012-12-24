@@ -28,12 +28,16 @@ module Network.Google.Storage (
 ) where
 
 
+import Control.Monad (liftM)
 import Crypto.MD5 (md5Base64)
 import Data.ByteString.Lazy (ByteString)
-import Data.List (stripPrefix)
-import Data.Maybe (maybe)
-import Network.Google (AccessToken, appendBody, appendHeaders, doRequest, makeProjectRequest)
-import Text.XML.Light (Element)
+import Data.List (intersperse, stripPrefix)
+import Data.List.Util (separate)
+import Data.Maybe (fromJust, isNothing, maybe)
+import Network.Google (AccessToken, appendBody, appendHeaders, appendQuery, doRequest, makeProjectRequest)
+import Network.HTTP.Base (urlEncode)
+import Network.HTTP.Conduit (queryString)
+import Text.XML.Light (Element(elContent), QName(qName), filterChildName, ppTopElement, strContent)
 
 
 data StorageAcl =
@@ -77,7 +81,8 @@ makeHost bucket = bucket ++ "." ++ storageHost
 
 
 makePath :: String -> String
-makePath key = "/" ++ key
+-- FIXME: It seems that some unicode key names are not encoded correctly.
+makePath = ('/' :) . concat . intersperse "/" . map urlEncode . separate '/'
 
 
 getService :: String -> AccessToken -> IO Element
@@ -88,8 +93,8 @@ getService projectId accessToken =
     doRequest request
 
 
-putBucket :: String -> AccessToken -> StorageAcl -> String -> IO [(String, String)]
-putBucket projectId accessToken acl bucket =
+putBucket :: String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
+putBucket projectId acl bucket accessToken =
   do
     let
       request = appendHeaders
@@ -100,8 +105,18 @@ putBucket projectId accessToken acl bucket =
     doRequest request
 
 
-getBucket :: String -> AccessToken -> String -> IO Element
-getBucket projectId accessToken bucket =
+getBucket :: String -> String -> AccessToken -> IO Element
+getBucket projectId bucket accessToken =
+  do
+    results <- getBucket' Nothing projectId bucket accessToken
+    let
+      root = head results
+    return $ root {elContent = concat $ map elContent results}
+
+
+getBucket' :: Maybe String -> String -> String -> AccessToken -> IO [Element]
+getBucket' marker projectId bucket accessToken =
+  -- FIXME: If a series of requests takes too long, it is possible the token might expire before they have all completed. We should really refresh the token if needed, in order to avoid this.
   do
     let
       request =
@@ -110,39 +125,48 @@ getBucket projectId accessToken bucket =
             ("max-keys", "1000000")
           ]
           (makeProjectRequest projectId accessToken storageApi "GET" (makeHost bucket, "/"))
-    doRequest request
+      request' = maybe request (\x -> appendQuery [("marker", x)] request) marker
+    result <- doRequest request'
+    let
+      marker' :: Maybe String
+      marker' = liftM strContent $ filterChildName (("NextMarker" ==) . qName) result
+    if isNothing marker' || marker' == Just ""
+      then return [result]
+      else liftM (result :) $ getBucket' marker' projectId bucket accessToken
 
 
-deleteBucket :: String -> AccessToken -> String -> IO [(String, String)]
-deleteBucket projectId accessToken bucket =
+deleteBucket :: String -> String -> AccessToken -> IO [(String, String)]
+deleteBucket projectId bucket accessToken =
   do
     let
       request = makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, "/")
     doRequest request
 
 
-getObject :: String -> AccessToken -> String -> String -> IO ByteString
-getObject projectId accessToken bucket key =
+getObject :: String -> String -> String -> AccessToken -> IO ByteString
+getObject projectId bucket key accessToken =
   do
     let
       request = (makeProjectRequest projectId accessToken storageApi "GET" (makeHost bucket, makePath key))
     doRequest request
 
 
-postObject :: String -> AccessToken -> String -> String -> StorageAcl -> String -> ByteString -> IO [(String, String)]
 postObject = undefined
 
 
-putObject :: String -> AccessToken -> String -> String -> StorageAcl -> Maybe String -> ByteString -> IO [(String, String)]
-putObject projectId accessToken bucket key acl mimeType bytes =
+putObject :: String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putObject projectId acl bucket key mimeType bytes accessToken =
   do
     let
+      (md5, md5') = md5Base64 bytes
       request =
         appendBody bytes $
         appendHeaders (
           [
             ("x-goog-acl", show acl)
-          , ("Content-MD5", md5Base64 bytes)
+          , ("Content-MD5", md5')
+          -- FIXME: Actually, we want to store the MD5 of the unencrypted object.
+          , ("x-goog-meta-MD5", md5)
           ]
           ++
           maybe [] (\x -> [("Content-Type", x)]) mimeType
@@ -150,16 +174,16 @@ putObject projectId accessToken bucket key acl mimeType bytes =
     doRequest request
 
 
-headObject :: String -> AccessToken -> String -> String -> IO [(String, String)]
-headObject projectId accessToken bucket key =
+headObject :: String -> String -> String -> AccessToken -> IO [(String, String)]
+headObject projectId bucket key accessToken =
   do
     let
       request = (makeProjectRequest projectId accessToken storageApi "HEAD" (makeHost bucket, makePath key))
     doRequest request
 
 
-deleteObject :: String -> AccessToken -> String -> String -> IO [(String, String)]
-deleteObject projectId accessToken bucket key =
+deleteObject :: String -> String -> String -> AccessToken -> IO [(String, String)]
+deleteObject projectId bucket key accessToken =
   do
     let
       request = (makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, makePath key))

@@ -23,10 +23,10 @@ module Network.Google.OAuth2 (
 , formUrl
 , googleScopes
 , refreshTokens
+, validateTokens
 ) where
 
 
-import Control.Monad (liftM)
 import Data.ByteString.Char8 as BS8 (ByteString, pack)
 import Data.ByteString.Util (lbsToS)
 import Data.CaseInsensitive as CI (CI(..), mk)
@@ -193,3 +193,27 @@ doOAuth2 client grantType extraBody =
     let
       (Ok result) = decode . lbsToS $ responseBody response
     return $ result
+
+
+validateTokens :: OAuth2Tokens -> IO Rational
+validateTokens tokens =
+  do
+    let
+      makeHeaderName :: String -> CI.CI BS8.ByteString
+      makeHeaderName = CI.mk . BS8.pack
+      request =
+        def {
+          method = BS8.pack "GET"
+        , secure = True
+        , host = BS8.pack "www.googleapis.com"
+        , port = 443
+        , path = BS8.pack "/oauth2/v1/tokeninfo"
+        , queryString = BS8.pack ("?access_token=" ++ accessToken tokens)
+        }
+    response <- withManager $ httpLbs request
+    let
+      (Ok result) = decode . lbsToS $ responseBody response
+      -- TODO: There must be a better way to extract a Rational from a JSValue.
+      expiresIn' :: Rational
+      (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" result
+    return expiresIn'

@@ -26,5 +26,10 @@ import Data.ByteString.Base64 as B64 (encode)
 import Data.Digest.Pure.MD5 (md5)
 
 
-md5Base64 :: ByteString -> String
-md5Base64 = unpack . B64.encode . BS.concat . toChunks . B.encode . md5
+md5Base64 :: ByteString -> (String, String)
+md5Base64 x =
+  let
+    y = md5 x
+    z = (unpack . B64.encode . BS.concat . toChunks . B.encode) y
+  in
+    (show y, z)

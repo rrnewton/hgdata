@@ -25,15 +25,15 @@ import Network.Google (AccessToken)
 import Network.Google.Storage (StorageAcl, getObject, putObject)
 
 
-getEncryptedObject :: String -> AccessToken -> String -> String -> IO ByteString
-getEncryptedObject projectId accessToken bucket key =
+getEncryptedObject :: String -> String -> String -> AccessToken -> IO ByteString
+getEncryptedObject projectId bucket key accessToken =
   do
-    bytes <- getObject projectId accessToken bucket key
+    bytes <- getObject projectId bucket key accessToken
     decryptLbs $ bytes
 
 
-putEncryptedObject :: [String] -> String -> AccessToken -> String -> String -> StorageAcl -> Maybe String -> ByteString -> IO [(String, String)]
-putEncryptedObject recipients projectId accessToken bucket key acl _ bytes =
+putEncryptedObject :: [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putEncryptedObject recipients projectId acl bucket key _ bytes accessToken =
   do
     bytes' <- encryptLbs recipients bytes
-    putObject projectId accessToken bucket key acl (Just "application/pgp-encrypted") bytes'
+    putObject projectId acl bucket key (Just "application/pgp-encrypted") bytes' accessToken

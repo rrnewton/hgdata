@@ -28,8 +28,9 @@ import Data.Maybe (catMaybes)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractPasswords, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
-import Network.Google.Storage (deleteObject, getBucket, getObject, putObject)
+import Network.Google.Storage (deleteObject, getBucket, getObject, headObject, putObject)
 import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
+import Network.Google.Storage.Sync (sync)
 import System.Console.CmdArgs
 import Text.XML.Light (ppTopElement)
 
@@ -76,7 +77,7 @@ data HGData =
     , key :: String
     , input :: FilePath
     , acl :: String
-    , encrypt :: [String]
+    , recipients :: [String]
     }
   | SDelete {
       accessToken :: String
@@ -84,12 +85,29 @@ data HGData =
     , bucket :: String
     , key :: String
     }
+  | SHead {
+      accessToken :: String
+    , projectId :: String
+    , bucket :: String
+    , key :: String
+    , output :: FilePath
+  }
+  | SSync {
+      clientId :: String
+    , clientSecret :: String
+    , refreshToken :: String
+    , projectId :: String
+    , bucket :: String
+    , directory :: FilePath
+    , acl :: String
+    , recipients :: [String]
+    }
       deriving (Show, Data, Typeable)
 
 
 hgData :: HGData
 hgData =
-  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete]
+  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete, shead, ssync]
     &= summary "hGData v0.0.2, by B. W. Bush (b.w.bush@acm.org), CC0 1.0 Universal license."
     &= help "Process Google data.  See <http://...> for more information."
 
@@ -167,7 +185,7 @@ sput = SPut
   , key = def &= typ "<<key name>" &= argPos 3
   , input = def &= typ "<<input file>>" &= argPos 4
   , acl = def &= typ "<<access control>>" &= argPos 5 &= opt "private"
-  , encrypt = def &= typ "<<recipient for which to encrypt the object>>"
+  , recipients = def &= typ "<<recipient for which to encrypt the object>>"
   }
     &= help "Put an object into a Google Storage bucket."
 
@@ -183,45 +201,88 @@ sdelete = SDelete
     &= help "Delete an object from a Google Storage bucket."
 
 
+shead :: HGData
+shead = SHead
+  {
+    accessToken = def &= typ "<<access token>>" &= argPos 0
+  , projectId = def &= typ "<<project ID>>" &= argPos 1
+  , bucket = def &= typ "<<bucket name>>" &= argPos 2
+  , key = def &= typ "<<key name>" &= argPos 3
+  , output = def &= typ "<<output file>>" &= argPos 4
+  }
+    &= help "Get object metadata from a Google Storage bucket."
+
+
+ssync :: HGData
+ssync = SSync
+  {
+    clientId = def &= typ "<<client ID>>" &= argPos 0
+  , clientSecret = def &= typ "<<client secret>>" &= argPos 1
+  , refreshToken = def &= typ "<<refresh token>>" &= argPos 2
+  , projectId = def &= typ "<<project ID>>" &= argPos 3
+  , bucket = def &= typ "<<bucket name>>" &= argPos 4
+  , directory = def &= typ "<<directory>>" &= argPos 5
+  , acl = def &= typ "<<access control>>" &= argPos 6 &= opt "private"
+  , recipients = def &= typ "<<recipient for which to encrypt the object>>"
+  }
+    &= help "Synchronize a directory with a Google Storage bucket."
+
+
 dispatch :: HGData -> IO ()
+
 dispatch (OAuth2Url clientId) =
   do
    putStrLn $ OA2.formUrl (OA2.OAuth2Client clientId undefined) $
       catMaybes $ map (flip lookup OA2.googleScopes) ["Google Cloud Storage", "Contacts"]
+
 dispatch (OAuth2Exchange clientId clientSecret exchangeCode tokenFile) =
   do
     tokens <- OA2.exchangeCode (OA2.OAuth2Client clientId clientSecret) exchangeCode
     writeFile tokenFile $ show tokens
+
 dispatch (OAuth2Refresh clientId clientSecret refreshToken tokenFile) =
   do
     tokens <- OA2.refreshTokens (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined)
     writeFile tokenFile $ show tokens
+
 dispatch (Contacts accessToken xmlOutput passwordOutput) =
   do
     contacts <- liftM ppTopElement . listContacts $ toAccessToken accessToken
     writeFile xmlOutput contacts
     passwords <- extractPasswords ["example-recipient"] contacts
     writeFile passwordOutput passwords
+
 dispatch (SList accessToken projectId bucket xmlOutput) =
   do
-    result <- getBucket projectId (toAccessToken accessToken) bucket
+    result <- getBucket projectId bucket (toAccessToken accessToken)
     writeFile xmlOutput $ ppTopElement result
+
 dispatch (SGet accessToken projectId bucket key output decrypt) =
   do
     let getter = if decrypt then getEncryptedObject else getObject
-    result <- getter projectId (toAccessToken accessToken) bucket key
+    result <- getter projectId bucket key (toAccessToken accessToken)
     LBS.writeFile output result
+
 dispatch (SPut accessToken projectId bucket key input acl recipients) =
   do
-    print recipients
     let putter = if null recipients then putObject else putEncryptedObject recipients
     bytes <- LBS.readFile input
-    putter projectId (toAccessToken accessToken) bucket key (read acl) Nothing bytes
+    putter projectId (read acl) bucket key Nothing bytes (toAccessToken accessToken)
     return ()
+
 dispatch (SDelete accessToken projectId bucket key) =
   do
-    result <- deleteObject projectId (toAccessToken accessToken) bucket key
+    result <- deleteObject projectId bucket key (toAccessToken accessToken)
     return ()
+
+dispatch (SHead accessToken projectId bucket key output) =
+  do
+    result <- headObject projectId bucket key (toAccessToken accessToken)
+    writeFile output $ show result
+
+dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients) =
+  do
+    sync projectId (read acl) bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients
 
 
 main :: IO ()
