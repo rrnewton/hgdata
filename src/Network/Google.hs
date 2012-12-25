@@ -88,7 +88,6 @@ instance DoRequest [(String, String)] where
   doRequest request =
     do
       response <- withManager $ httpLbs request
-      -- TODO: replace "read . show" with a chain of packing and unpacking functions
       return $ read . show $ responseHeaders response
 
 

@@ -27,6 +27,7 @@ import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
 import Data.Maybe (catMaybes)
+import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.OAuth2 (OAuth2Client(..), OAuth2Tokens(..), refreshTokens, validateTokens)
 import Network.Google.Storage (StorageAcl, deleteObject, getBucket, putObject)
@@ -34,7 +35,6 @@ import Network.Google.Storage.Encrypted (putEncryptedObject)
 import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.FilePath (pathSeparator)
 import System.IO (hFlush, stdout)
-import System.Time (ClockTime, TimeDiff(tdSec), addToClockTime, getClockTime, noTimeDiff)
 import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildName, ppTopElement, strContent)
 
 
@@ -52,20 +52,20 @@ sync projectId acl bucket client tokens directory recipients =
     client tokens directory
 
 
-type TokenClock = (ClockTime, OAuth2Tokens)
+type TokenClock = (UTCTime, OAuth2Tokens)
 
 
 checkExpiration :: OAuth2Client -> TokenClock -> IO TokenClock
 checkExpiration client (expirationTime, tokens) =
   do
-    now <- getClockTime
+    now <- getCurrentTime
     if now > expirationTime
       then
         do
           tokens' <- refreshTokens client tokens
-          start <- getClockTime
+          start <- getCurrentTime
           let
-            expirationTime' = addToClockTime (noTimeDiff {tdSec = floor (expiresIn tokens') - 60}) start
+            expirationTime' = addUTCTime (fromRational (expiresIn tokens') - 60) start
           putStrLn $ "REFRESH " ++ show expirationTime'
           return (expirationTime', tokens')
        else
@@ -75,28 +75,24 @@ checkExpiration client (expirationTime, tokens) =
 sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> IO ()
 sync' lister putter deleter client tokens directory =
   do
-    now <- getClockTime
-    tokenClock@(_, tokens') <- checkExpiration client (addToClockTime (noTimeDiff {tdSec = -60}) now, tokens)
+    now <- getCurrentTime
+    tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
     putStr "REMOTE "
     hFlush stdout
     remote' <- lister $ toAccessToken $ accessToken tokens'
-    writeFile "remote.xml" $ ppTopElement remote'
     let
       remote = parseMetadata remote'
-    writeFile "remotes.hs" $ show remote
     putStrLn $ show $ length remote
     putStr "LOCAL "
     hFlush stdout
     local <- walkDirectories directory
     putStrLn $ show $ length local
-    writeFile "local.hs" $ show local
     let
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool
-      sameKey (ObjectMetadata key _ _ _ _) (ObjectMetadata key' _ _ _ _) = key == key'
-      sameMD5 :: ObjectMetadata -> ObjectMetadata -> Bool
-      sameMD5 (ObjectMetadata key eTag _ _ md5) (ObjectMetadata key' eTag' _ _ md5') =
-        key == key' && (eTag == eTag' || md5 == md5')
-      changedObjects = deleteFirstsBy sameMD5 local remote
+      sameKey (ObjectMetadata key _ _ _) (ObjectMetadata key' _ _ _) = key == key'
+      sameETag :: ObjectMetadata -> ObjectMetadata -> Bool
+      sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && eTag == eTag'
+      changedObjects = deleteFirstsBy sameETag local remote
       deletedObjects = deleteFirstsBy sameKey remote local
     putStrLn $ "PUTS " ++ show (length changedObjects)
     putStrLn $ "DELETES " ++ show (length deletedObjects)
@@ -152,7 +148,6 @@ data ObjectMetadata = ObjectMetadata
   , eTag :: String
   , size :: Maybe Int
   , lastModified :: Maybe String
-  , md5 :: Maybe String
   }
     deriving (Show)
 
@@ -170,7 +165,7 @@ parseMetadata root =
         eTag <- finder "ETag" element
         size <- finder "Size" element
         lastModified <- finder "LastModified" element
-        return $ ObjectMetadata key (tail . init $ eTag) (Just $ read size) (Just lastModified) (finder "x-goog-meta-MD5" element)
+        return $ ObjectMetadata key (tail . init $ eTag) (Just $ read size) (Just lastModified)
   in
     catMaybes $ map makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
 
@@ -199,7 +194,7 @@ walkDirectories' directory (y : ys) =
                 key = tail file
               bytes <- LBS.readFile $ directory ++ key
               let !eTag = MD5.md5 bytes
-              return $ ObjectMetadata key (show eTag) Nothing Nothing (Just $! show eTag)
+              return $ ObjectMetadata key (show eTag) Nothing Nothing
         files <- liftM (map ((y ++ [pathSeparator]) ++))
                $ liftM ( \\ [".", ".."])
                $ getDirectoryContents (directory ++ y)

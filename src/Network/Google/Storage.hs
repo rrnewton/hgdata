@@ -156,15 +156,12 @@ putObject :: String -> StorageAcl -> String -> String -> Maybe String -> ByteStr
 putObject projectId acl bucket key mimeType bytes accessToken =
   do
     let
-      (md5, md5') = md5Base64 bytes
       request =
         appendBody bytes $
         appendHeaders (
           [
             ("x-goog-acl", show acl)
-          , ("Content-MD5", md5')
-          -- FIXME: Actually, we want to store the MD5 of the unencrypted object.
-          , ("x-goog-meta-MD5", md5)
+          , ("Content-MD5", snd $ md5Base64 bytes)
           ]
           ++
           maybe [] (\x -> [("Content-Type", x)]) mimeType
