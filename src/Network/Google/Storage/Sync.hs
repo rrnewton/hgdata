@@ -26,8 +26,10 @@ import Control.Monad (filterM, liftM)
 import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromJust)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Format (parseTime)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.OAuth2 (OAuth2Client(..), OAuth2Tokens(..), refreshTokens, validateTokens)
 import Network.Google.Storage (StorageAcl, deleteObject, getBucket, putObject)
@@ -35,6 +37,8 @@ import Network.Google.Storage.Encrypted (putEncryptedObject)
 import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.FilePath (pathSeparator)
 import System.IO (hFlush, stdout)
+import System.Locale (defaultTimeLocale)
+import System.Posix.Files (fileSize, getFileStatus, modificationTime)
 import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildName, ppTopElement, strContent)
 
 
@@ -88,11 +92,14 @@ sync' lister putter deleter client tokens directory =
     local <- walkDirectories directory
     putStrLn $ show $ length local
     let
+      tolerance = 0
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool
       sameKey (ObjectMetadata key _ _ _) (ObjectMetadata key' _ _ _) = key == key'
       sameETag :: ObjectMetadata -> ObjectMetadata -> Bool
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && eTag == eTag'
-      changedObjects = deleteFirstsBy sameETag local remote
+      earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
+      earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > (addUTCTime tolerance time')
+      changedObjects = deleteFirstsBy earlierTime local remote
       deletedObjects = deleteFirstsBy sameKey remote local
     putStrLn $ "PUTS " ++ show (length changedObjects)
     putStrLn $ "DELETES " ++ show (length deletedObjects)
@@ -146,8 +153,8 @@ data ObjectMetadata = ObjectMetadata
   {
     key :: String
   , eTag :: String
-  , size :: Maybe Int
-  , lastModified :: Maybe String
+  , size :: Int
+  , lastModified :: UTCTime
   }
     deriving (Show)
 
@@ -165,7 +172,7 @@ parseMetadata root =
         eTag <- finder "ETag" element
         size <- finder "Size" element
         lastModified <- finder "LastModified" element
-        return $ ObjectMetadata key (tail . init $ eTag) (Just $ read size) (Just lastModified)
+        return $ ObjectMetadata key (tail . init $ eTag) (read size) (fromJust $ parseTime defaultTimeLocale "%FT%T%QZ" lastModified)
   in
     catMaybes $ map makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
 
@@ -192,9 +199,16 @@ walkDirectories' directory (y : ys) =
             do
               let
                 key = tail file
-              bytes <- LBS.readFile $ directory ++ key
+                path = directory ++ key
+              bytes <- LBS.readFile path
+              status <- getFileStatus path
+              let
+                lastTime :: UTCTime
+                lastTime = posixSecondsToUTCTime $ realToFrac $ modificationTime status
+                size :: Int
+                size = fromIntegral $ fileSize status
               let !eTag = MD5.md5 bytes
-              return $ ObjectMetadata key (show eTag) Nothing Nothing
+              return $ ObjectMetadata key (show eTag) size lastTime
         files <- liftM (map ((y ++ [pathSeparator]) ++))
                $ liftM ( \\ [".", ".."])
                $ getDirectoryContents (directory ++ y)
