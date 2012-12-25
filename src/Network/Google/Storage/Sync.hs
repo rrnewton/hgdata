@@ -54,6 +54,7 @@ sync projectId acl bucket client tokens directory recipients =
     ((if null recipients then putObject else putEncryptedObject recipients) projectId acl bucket)
     (deleteObject projectId bucket)
     client tokens directory
+    (null recipients)
 
 
 type TokenClock = (UTCTime, OAuth2Tokens)
@@ -76,8 +77,8 @@ checkExpiration client (expirationTime, tokens) =
          return (expirationTime, tokens)
 
 
-sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> IO ()
-sync' lister putter deleter client tokens directory =
+sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> IO ()
+sync' lister putter deleter client tokens directory byETag =
   do
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
@@ -92,14 +93,14 @@ sync' lister putter deleter client tokens directory =
     local <- walkDirectories directory
     putStrLn $ show $ length local
     let
-      tolerance = 0
+      tolerance = 300
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool
       sameKey (ObjectMetadata key _ _ _) (ObjectMetadata key' _ _ _) = key == key'
       sameETag :: ObjectMetadata -> ObjectMetadata -> Bool
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && eTag == eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
       earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > (addUTCTime tolerance time')
-      changedObjects = deleteFirstsBy earlierTime local remote
+      changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local remote
       deletedObjects = deleteFirstsBy sameKey remote local
     putStrLn $ "PUTS " ++ show (length changedObjects)
     putStrLn $ "DELETES " ++ show (length deletedObjects)
