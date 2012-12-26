@@ -23,7 +23,6 @@ module Network.Google.Storage.Sync (
 
 import Control.Exception (SomeException, finally, handle)
 import Control.Monad (filterM, liftM)
-import Control.Monad.Trans.Resource -- (allocate)
 import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
@@ -41,16 +40,18 @@ import System.FilePath (pathSeparator)
 import System.IO (hFlush, stdout)
 import System.Locale (defaultTimeLocale)
 import System.Posix.Files (fileSize, getFileStatus, modificationTime)
+import Text.Regex.Posix ((=~))
 import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildName, ppTopElement, strContent)
 
 
 type Lister = AccessToken -> IO Element
 type Putter = String -> Maybe String -> LBS.ByteString -> AccessToken -> IO [(String, String)]
 type Deleter = String -> AccessToken -> IO [(String, String)]
+type Excluder = ObjectMetadata -> Bool
 
 
-sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> IO ()
-sync projectId acl bucket client tokens directory recipients =
+sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> [String] -> IO ()
+sync projectId acl bucket client tokens directory recipients exclusions =
   do
     manager <- newManager def
     finally
@@ -61,6 +62,7 @@ sync projectId acl bucket client tokens directory recipients =
           (deleteObjectUsingManager manager projectId bucket)
           client tokens directory
           (null recipients)
+          (makeExcluder exclusions)
       )(
         closeManager manager
       )
@@ -86,8 +88,18 @@ checkExpiration client (expirationTime, tokens) =
          return (expirationTime, tokens)
 
 
-sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> IO ()
-sync' lister putter deleter client tokens directory byETag =
+makeExcluder :: [String] -> Excluder
+makeExcluder exclusions =
+  \(ObjectMetadata candidate _ _ _) ->
+    let
+      match :: String -> Bool
+      match exclusion = candidate =~ exclusion
+    in
+      not $ or $ map match exclusions
+
+
+sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> IO ()
+sync' lister putter deleter client tokens directory byETag excluder =
   do
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
@@ -109,8 +121,9 @@ sync' lister putter deleter client tokens directory byETag =
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && eTag == eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
       earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > (addUTCTime tolerance time')
-      changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local remote
-      deletedObjects = deleteFirstsBy sameKey remote local
+      local' = filter excluder local
+      changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
+      deletedObjects = deleteFirstsBy sameKey remote local'
     putStrLn $ "PUTS " ++ show (length changedObjects)
     putStrLn $ "DELETES " ++ show (length deletedObjects)
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects

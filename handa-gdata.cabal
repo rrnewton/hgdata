@@ -11,8 +11,8 @@ executable hgdata
     build-depends: HTTP -any, base -any, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
                    directory -any, filepath -any, http-conduit -any, json -any,
-                   old-locale -any, process -any, pureMD5 -any, resourcet -any,
-                   text -any, time -any, unix -any, xml -any
+                   old-locale -any, process -any, pureMD5 -any, regex-posix -any,
+                   resourcet -any, text -any, time -any, unix -any, xml -any
     main-is: Main.hs
     buildable: True
     hs-source-dirs: src

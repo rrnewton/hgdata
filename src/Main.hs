@@ -101,6 +101,7 @@ data HGData =
     , directory :: FilePath
     , acl :: String
     , recipients :: [String]
+    , exclusionFile :: FilePath
     }
       deriving (Show, Data, Typeable)
 
@@ -224,6 +225,7 @@ ssync = SSync
   , directory = def &= typ "<<directory>>" &= argPos 5
   , acl = def &= typ "<<access control>>" &= argPos 6 &= opt "private"
   , recipients = def &= typ "<<recipient for which to encrypt the object>>"
+  , exclusionFile = def &= typ "<<file of regular expressions for files to exclude>>"
   }
     &= help "Synchronize a directory with a Google Storage bucket."
 
@@ -280,9 +282,10 @@ dispatch (SHead accessToken projectId bucket key output) =
     result <- headObject projectId bucket key (toAccessToken accessToken)
     writeFile output $ show result
 
-dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients) =
+dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients exclusionFile) =
   do
-    sync projectId (read acl) bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients
+    exclusions <- liftM lines $ readFile exclusionFile
+    sync projectId (read acl) bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients exclusions
 
 
 main :: IO ()
