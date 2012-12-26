@@ -37,6 +37,7 @@ module Network.Google.Storage (
 
 
 import Control.Monad (liftM)
+import Control.Monad.Trans.Resource (ResourceT)
 import Crypto.MD5 (md5Base64)
 import Data.ByteString.Lazy (ByteString)
 import Data.List (intersperse, stripPrefix)
@@ -44,7 +45,7 @@ import Data.List.Util (separate)
 import Data.Maybe (fromJust, isNothing, maybe)
 import Network.Google (AccessToken, appendBody, appendHeaders, appendQuery, doManagedRequest, doRequest, makeProjectRequest)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Manager, queryString)
+import Network.HTTP.Conduit (Manager, Request, queryString)
 import Text.XML.Light (Element(elContent), QName(qName), filterChildName, ppTopElement, strContent)
 
 
@@ -100,6 +101,7 @@ getServiceUsingManager :: Manager -> String -> AccessToken -> IO Element
 getServiceUsingManager = getServiceImpl . doManagedRequest
 
 
+getServiceImpl :: (Request (ResourceT IO) -> IO Element) -> String -> AccessToken -> IO Element
 getServiceImpl doer projectId accessToken =
   do
     let
@@ -115,6 +117,7 @@ putBucketUsingManager :: Manager -> String -> StorageAcl -> String -> AccessToke
 putBucketUsingManager = putBucketImpl . doManagedRequest
 
 
+putBucketImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
 putBucketImpl doer projectId acl bucket accessToken =
   do
     let
@@ -134,7 +137,7 @@ getBucketUsingManager :: Manager -> String -> String -> AccessToken -> IO Elemen
 getBucketUsingManager = getBucketImpl . doManagedRequest
 
 
--- TODO: Add type signature.
+getBucketImpl :: (Request (ResourceT IO) -> IO Element) -> String -> String -> AccessToken -> IO Element
 getBucketImpl doer projectId bucket accessToken =
   do
     results <- getBucketImpl' doer Nothing projectId bucket accessToken
@@ -143,7 +146,7 @@ getBucketImpl doer projectId bucket accessToken =
     return $ root {elContent = concat $ map elContent results}
 
 
--- TODO: Add type signature.
+getBucketImpl' :: (Request (ResourceT IO) -> IO Element) -> Maybe String -> String -> String -> AccessToken -> IO [Element]
 getBucketImpl' doer marker projectId bucket accessToken =
   do
     let
@@ -171,6 +174,7 @@ deleteBucketUsingManager :: Manager -> String -> String -> AccessToken -> IO [(S
 deleteBucketUsingManager = deleteBucketImpl . doManagedRequest
 
 
+deleteBucketImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> AccessToken -> IO [(String, String)]
 deleteBucketImpl doer  projectId bucket accessToken =
   do
     let
@@ -186,6 +190,7 @@ getObjectUsingManager :: Manager -> String -> String -> String -> AccessToken ->
 getObjectUsingManager = getObjectImpl . doManagedRequest
 
 
+getObjectImpl :: (Request (ResourceT IO) -> IO ByteString) -> String -> String -> String -> AccessToken -> IO ByteString
 getObjectImpl doer projectId bucket key accessToken =
   do
     let
@@ -204,6 +209,7 @@ putObjectUsingManager :: Manager -> String -> StorageAcl -> String -> String -> 
 putObjectUsingManager = putObjectImpl . doManagedRequest
 
 
+putObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
 putObjectImpl doer projectId acl bucket key mimeType bytes accessToken =
   do
     let
@@ -228,6 +234,7 @@ headObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -
 headObjectUsingManager = headObjectImpl . doManagedRequest
 
 
+headObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> String -> AccessToken -> IO [(String, String)]
 headObjectImpl doer projectId bucket key accessToken =
   do
     let
@@ -243,6 +250,7 @@ deleteObjectUsingManager :: Manager -> String -> String -> String -> AccessToken
 deleteObjectUsingManager = deleteObjectImpl . doManagedRequest
 
 
+deleteObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> String -> AccessToken -> IO [(String, String)]
 deleteObjectImpl doer projectId bucket key accessToken =
   do
     let
