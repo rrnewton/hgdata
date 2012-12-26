@@ -21,6 +21,7 @@ module Network.Google (
 , appendBody
 , appendHeaders
 , appendQuery
+, doManagedRequest
 , doRequest
 , makeProjectRequest
 , makeRequest
@@ -29,7 +30,7 @@ module Network.Google (
 ) where
 
 
-import Control.Monad.Trans.Resource (ResourceT)
+import Control.Monad.Trans.Resource -- (MonadResource, ReleaseKey, ResourceT, allocate, runResourceT)
 import Data.List (intersperse)
 import Data.Maybe (fromJust)
 import Data.ByteString.Util (lbsToS)
@@ -38,7 +39,7 @@ import Data.ByteString.Char8 as BS8 (ByteString, append, pack, unpack)
 import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, responseBody, withManager)
+import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), closeManager, def, httpLbs, newManager, responseBody, withManager)
 import Text.XML.Light (Element, parseXMLDoc)
 
 
@@ -75,40 +76,48 @@ makeProjectRequest projectId accessToken api method hostPath =
 
 class DoRequest a where
   doRequest :: Request (ResourceT IO) -> IO a
-
-
-instance DoRequest () where
   doRequest request =
     do
-      withManager $ httpLbs request
-      return ()
-
-
-instance DoRequest [(String, String)] where
-  doRequest request =
-    do
-      response <- withManager $ httpLbs request
-      return $ read . show $ responseHeaders response
+--    (_, manager) <- allocate (newManager def) closeManager
+      manager <- newManager def
+      result <- doManagedRequest manager request
+      closeManager manager
+      return result
+  doManagedRequest :: Manager -> Request (ResourceT IO) -> IO a
 
 
 instance DoRequest LBS8.ByteString where
-  doRequest request =
+  doManagedRequest manager request =
     do
-      response <- withManager $ httpLbs request
+      response <- runResourceT (httpLbs request manager)
       return $ responseBody response
 
 
 instance DoRequest String where
-  doRequest request =
+  doManagedRequest manager request =
     do
-      result <- doRequest request
+      result <- doManagedRequest manager request
       return $ lbsToS result
 
 
-instance DoRequest Element where
-  doRequest request =
+instance DoRequest [(String, String)] where
+  doManagedRequest manager request =
     do
-      result <- (doRequest request :: IO LBS8.ByteString)
+      response <- runResourceT (httpLbs request manager)
+      return $ read . show $ responseHeaders response
+
+
+instance DoRequest () where
+  doManagedRequest manager request =
+    do
+      doManagedRequest manager request :: IO LBS8.ByteString
+      return ()
+
+
+instance DoRequest Element where
+  doManagedRequest manager request =
+    do
+      result <- (doManagedRequest manager request :: IO LBS8.ByteString)
       return $ fromJust $ parseXMLDoc result
 
 
