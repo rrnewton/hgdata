@@ -21,8 +21,9 @@ module Network.Google.Storage.Sync (
 ) where
 
 
-import Control.Exception (SomeException, handle)
+import Control.Exception (SomeException, finally, handle)
 import Control.Monad (filterM, liftM)
+import Control.Monad.Trans.Resource -- (allocate)
 import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
@@ -32,8 +33,9 @@ import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (parseTime)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.OAuth2 (OAuth2Client(..), OAuth2Tokens(..), refreshTokens, validateTokens)
-import Network.Google.Storage (StorageAcl, deleteObject, getBucket, putObject)
-import Network.Google.Storage.Encrypted (putEncryptedObject)
+import Network.Google.Storage (StorageAcl, deleteObjectUsingManager, getBucketUsingManager, putObjectUsingManager)
+import Network.Google.Storage.Encrypted (putEncryptedObject, putEncryptedObjectUsingManager)
+import Network.HTTP.Conduit (closeManager, def, newManager)
 import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.FilePath (pathSeparator)
 import System.IO (hFlush, stdout)
@@ -49,12 +51,19 @@ type Deleter = String -> AccessToken -> IO [(String, String)]
 
 sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> IO ()
 sync projectId acl bucket client tokens directory recipients =
-  sync'
-    (getBucket projectId bucket)
-    ((if null recipients then putObject else putEncryptedObject recipients) projectId acl bucket)
-    (deleteObject projectId bucket)
-    client tokens directory
-    (null recipients)
+  do
+    manager <- newManager def
+    finally
+      (
+        sync'
+          (getBucketUsingManager manager projectId bucket)
+          ((if null recipients then putObjectUsingManager manager else putEncryptedObjectUsingManager manager recipients) projectId acl bucket)
+          (deleteObjectUsingManager manager projectId bucket)
+          client tokens directory
+          (null recipients)
+      )(
+        closeManager manager
+      )
 
 
 type TokenClock = (UTCTime, OAuth2Tokens)

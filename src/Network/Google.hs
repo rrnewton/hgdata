@@ -30,7 +30,8 @@ module Network.Google (
 ) where
 
 
-import Control.Monad.Trans.Resource -- (MonadResource, ReleaseKey, ResourceT, allocate, runResourceT)
+import Control.Exception (finally)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.List (intersperse)
 import Data.Maybe (fromJust)
 import Data.ByteString.Util (lbsToS)
@@ -39,7 +40,7 @@ import Data.ByteString.Char8 as BS8 (ByteString, append, pack, unpack)
 import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), closeManager, def, httpLbs, newManager, responseBody, withManager)
+import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), closeManager, def, httpLbs, newManager, responseBody)
 import Text.XML.Light (Element, parseXMLDoc)
 
 
@@ -78,11 +79,15 @@ class DoRequest a where
   doRequest :: Request (ResourceT IO) -> IO a
   doRequest request =
     do
---    (_, manager) <- allocate (newManager def) closeManager
+{--
+      -- TODO: The following seems cleaner, but has type/instance problems:
+      (_, manager) <- allocate (newManager def) closeManager
+      doManagedRequest manager request
+--}
       manager <- newManager def
-      result <- doManagedRequest manager request
-      closeManager manager
-      return result
+      finally
+        (doManagedRequest manager request)
+        (closeManager manager)
   doManagedRequest :: Manager -> Request (ResourceT IO) -> IO a
 
 

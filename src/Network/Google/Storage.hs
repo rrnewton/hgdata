@@ -18,13 +18,21 @@
 module Network.Google.Storage (
   StorageAcl
 , deleteBucket
+, deleteBucketUsingManager
 , deleteObject
+, deleteObjectUsingManager
 , getBucket
+, getBucketUsingManager
 , getObject
+, getObjectUsingManager
 , getService
+, getServiceUsingManager
 , headObject
+, headObjectUsingManager
 , putBucket
+, putBucketUsingManager
 , putObject
+, putObjectUsingManager
 ) where
 
 
@@ -34,9 +42,9 @@ import Data.ByteString.Lazy (ByteString)
 import Data.List (intersperse, stripPrefix)
 import Data.List.Util (separate)
 import Data.Maybe (fromJust, isNothing, maybe)
-import Network.Google (AccessToken, appendBody, appendHeaders, appendQuery, doRequest, makeProjectRequest)
+import Network.Google (AccessToken, appendBody, appendHeaders, appendQuery, doManagedRequest, doRequest, makeProjectRequest)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (queryString)
+import Network.HTTP.Conduit (Manager, queryString)
 import Text.XML.Light (Element(elContent), QName(qName), filterChildName, ppTopElement, strContent)
 
 
@@ -85,15 +93,29 @@ makePath = ('/' :) . concat . intersperse "/" . map urlEncode . separate '/'
 
 
 getService :: String -> AccessToken -> IO Element
-getService projectId accessToken =
+getService = getServiceImpl doRequest
+
+
+getServiceUsingManager :: Manager -> String -> AccessToken -> IO Element
+getServiceUsingManager = getServiceImpl . doManagedRequest
+
+
+getServiceImpl doer projectId accessToken =
   do
     let
       request = makeProjectRequest projectId accessToken storageApi "GET" (storageHost, "/")
-    doRequest request
+    doer request
 
 
 putBucket :: String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
-putBucket projectId acl bucket accessToken =
+putBucket = putBucketImpl doRequest
+
+
+putBucketUsingManager :: Manager -> String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
+putBucketUsingManager = putBucketImpl . doManagedRequest
+
+
+putBucketImpl doer projectId acl bucket accessToken =
   do
     let
       request = appendHeaders
@@ -101,20 +123,28 @@ putBucket projectId acl bucket accessToken =
           ("x-goog-acl", show acl)
         ]
         (makeProjectRequest projectId accessToken storageApi "PUT" (makeHost bucket, "/"))
-    doRequest request
+    doer request
 
 
 getBucket :: String -> String -> AccessToken -> IO Element
-getBucket projectId bucket accessToken =
+getBucket = getBucketImpl doRequest
+
+
+getBucketUsingManager :: Manager -> String -> String -> AccessToken -> IO Element
+getBucketUsingManager = getBucketImpl . doManagedRequest
+
+
+-- TODO: Add type signature.
+getBucketImpl doer projectId bucket accessToken =
   do
-    results <- getBucket' Nothing projectId bucket accessToken
+    results <- getBucketImpl' doer Nothing projectId bucket accessToken
     let
       root = head results
     return $ root {elContent = concat $ map elContent results}
 
 
-getBucket' :: Maybe String -> String -> String -> AccessToken -> IO [Element]
-getBucket' marker projectId bucket accessToken =
+-- TODO: Add type signature.
+getBucketImpl' doer marker projectId bucket accessToken =
   do
     let
       request =
@@ -124,36 +154,57 @@ getBucket' marker projectId bucket accessToken =
           ]
           (makeProjectRequest projectId accessToken storageApi "GET" (makeHost bucket, "/"))
       request' = maybe request (\x -> appendQuery [("marker", x)] request) marker
-    result <- doRequest request'
+    result <- doer request'
     let
       marker' :: Maybe String
       marker' = liftM strContent $ filterChildName (("NextMarker" ==) . qName) result
     if isNothing marker' || marker' == Just ""
       then return [result]
-      else liftM (result :) $ getBucket' marker' projectId bucket accessToken
+      else liftM (result :) $ getBucketImpl' doer marker' projectId bucket accessToken
 
 
 deleteBucket :: String -> String -> AccessToken -> IO [(String, String)]
-deleteBucket projectId bucket accessToken =
+deleteBucket = deleteBucketImpl doRequest
+
+
+deleteBucketUsingManager :: Manager -> String -> String -> AccessToken -> IO [(String, String)]
+deleteBucketUsingManager = deleteBucketImpl . doManagedRequest
+
+
+deleteBucketImpl doer  projectId bucket accessToken =
   do
     let
       request = makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, "/")
-    doRequest request
+    doer request
 
 
 getObject :: String -> String -> String -> AccessToken -> IO ByteString
-getObject projectId bucket key accessToken =
+getObject = getObjectImpl doRequest
+
+
+getObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -> IO ByteString
+getObjectUsingManager = getObjectImpl . doManagedRequest
+
+
+getObjectImpl doer projectId bucket key accessToken =
   do
     let
       request = (makeProjectRequest projectId accessToken storageApi "GET" (makeHost bucket, makePath key))
-    doRequest request
+    doer request
 
 
 postObject = undefined
 
 
 putObject :: String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
-putObject projectId acl bucket key mimeType bytes accessToken =
+putObject = putObjectImpl doRequest
+
+
+putObjectUsingManager :: Manager -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putObjectUsingManager = putObjectImpl . doManagedRequest
+
+
+putObjectImpl doer projectId acl bucket key mimeType bytes accessToken =
   do
     let
       request =
@@ -166,20 +217,34 @@ putObject projectId acl bucket key mimeType bytes accessToken =
           ++
           maybe [] (\x -> [("Content-Type", x)]) mimeType
         ) (makeProjectRequest projectId accessToken storageApi "PUT" (makeHost bucket, makePath key))
-    doRequest request
+    doer request
 
 
 headObject :: String -> String -> String -> AccessToken -> IO [(String, String)]
-headObject projectId bucket key accessToken =
+headObject = headObjectImpl doRequest
+
+
+headObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -> IO [(String, String)]
+headObjectUsingManager = headObjectImpl . doManagedRequest
+
+
+headObjectImpl doer projectId bucket key accessToken =
   do
     let
       request = (makeProjectRequest projectId accessToken storageApi "HEAD" (makeHost bucket, makePath key))
-    doRequest request
+    doer request
 
 
 deleteObject :: String -> String -> String -> AccessToken -> IO [(String, String)]
-deleteObject projectId bucket key accessToken =
+deleteObject = deleteObjectImpl doRequest
+
+
+deleteObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -> IO [(String, String)]
+deleteObjectUsingManager = deleteObjectImpl . doManagedRequest
+
+
+deleteObjectImpl doer projectId bucket key accessToken =
   do
     let
       request = (makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, makePath key))
-    doRequest request
+    doer request
