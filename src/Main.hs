@@ -129,7 +129,7 @@ oAuth2Exchange = OAuth2Exchange
     client = def &= typ "ID" &= help "OAuth2 client ID"
   , secret = def &= typ "SECRET" &= help "OAuth2 client secret"
   , code = def &= typ "CODE" &= argPos 0
-  , tokens = def &= opt "/dev/stdout" &= typFile &= help "File for OAuth2 tokens"
+  , tokens = def &= opt "/dev/stdout" &= typFile &= argPos 1
   }
     &= help "Exchange an OAuth2 code for tokens."
 
@@ -140,7 +140,7 @@ oAuth2Refresh = OAuth2Refresh
     client = def &= typ "ID" &= help "OAuth2 client ID"
   , secret = def &= typ "SECRET" &= help "OAuth2 client secret"
   , refresh = def &= typ "TOKEN" &= help "OAuth2 refresh token"
-  , tokens = def &= opt "/dev/stdout" &= typFile &= help "Output for OAuth2 tokens"
+  , tokens = def &= opt "/dev/stdout" &= typFile &= argPos 0
   }
     &= help "Exchange an OAuth2 code for tokens."
 
@@ -188,7 +188,7 @@ sput = SPut
   , bucket = def &= typ "BUCKET" &= argPos 0
   , key = def &= typ "KEY" &= argPos 1
   , input = def &= opt "/dev/stdin" &= typFile &= argPos 2
-  , acl = def &= {-- FIXME: This doesn't seem to work. --} opt "private" &= typ "ACCESS" &= help "Pre-defined ACL"
+  , acl = def &= opt "private" &= typ "ACL" &= argPos 3
   , encrypt = def &= typ "RECIPIENT" &= help "Recipient to encrypt for"
   }
     &= help "Put an object into a Google Storage bucket."
@@ -226,7 +226,7 @@ ssync = SSync
   , project = def &= typ "ID" &= help "Google API project number"
   , bucket = def &= typ "BUCKET" &= argPos 0
   , directory = def &= typ "DIRECTORY" &= argPos 1
-  , acl = def &= {-- FIXME: This doesn't seem to work. --} opt "private" &= typ "ACCESS" &= help "Pre-defined ACL"
+  , acl = def &= opt "private" &= typ "ACL" &= argPos 2
   , encrypt = def &= typ "RECIPIENT" &= help "Recipient to encrypt for"
   , exclusions = def &= typFile &= help "File of regex exclusions"
   }
