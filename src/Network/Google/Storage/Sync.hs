@@ -113,9 +113,6 @@ sync' lister putter deleter client tokens directory byETag excluder =
     hFlush stdout
     local <- walkDirectories directory
     putStrLn $ show $ length local
-    writeFile "remote.xml" $ ppTopElement remote'
-    writeFile "remote.hs" $ show remote
-    writeFile "local.hs" $ show local
     let
       tolerance = 300
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool

@@ -122,7 +122,7 @@ instance DoRequest () where
 instance DoRequest Element where
   doManagedRequest manager request =
     do
-      result <- (doManagedRequest manager request :: IO LBS8.ByteString)
+      result <- (doManagedRequest manager request :: IO String)
       return $ fromJust $ parseXMLDoc result
 
 

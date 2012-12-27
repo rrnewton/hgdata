@@ -214,7 +214,6 @@ putObjectUsingManager = putObjectImpl . doManagedRequest
 putObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
 putObjectImpl doer projectId acl bucket key mimeType bytes accessToken =
   do
-    appendFile "keys.log" $ "KEY " ++ key ++ "\nPATH " ++ (makePath key) ++ "\n"
     let
       request =
         appendBody bytes $
@@ -256,7 +255,6 @@ deleteObjectUsingManager = deleteObjectImpl . doManagedRequest
 deleteObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> String -> AccessToken -> IO [(String, String)]
 deleteObjectImpl doer projectId bucket key accessToken =
   do
-    appendFile "keys.log" $ "KEY' " ++ key ++ "\nPATH' " ++ (makePath key) ++ "\n"
     let
       request = (makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, makePath key))
     doer request
