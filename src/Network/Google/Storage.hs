@@ -39,7 +39,9 @@ module Network.Google.Storage (
 import Control.Monad (liftM)
 import Control.Monad.Trans.Resource (ResourceT)
 import Crypto.MD5 (md5Base64)
+import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Lazy (ByteString)
+import Data.ByteString.Util (sToBs)
 import Data.List (intersperse, stripPrefix)
 import Data.List.Util (separate)
 import Data.Maybe (fromJust, isNothing, maybe)
@@ -90,7 +92,7 @@ makeHost bucket = bucket ++ "." ++ storageHost
 
 
 makePath :: String -> String
-makePath = ('/' :) . concat . intersperse "/" . map urlEncode . separate '/'
+makePath = ('/' :) . concat . intersperse "/" . map (urlEncode . unpack . sToBs) . separate '/'
 
 
 getService :: String -> AccessToken -> IO Element
@@ -212,6 +214,7 @@ putObjectUsingManager = putObjectImpl . doManagedRequest
 putObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
 putObjectImpl doer projectId acl bucket key mimeType bytes accessToken =
   do
+    appendFile "keys.log" $ "KEY " ++ key ++ "\nPATH " ++ (makePath key) ++ "\n"
     let
       request =
         appendBody bytes $
@@ -253,6 +256,7 @@ deleteObjectUsingManager = deleteObjectImpl . doManagedRequest
 deleteObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> String -> AccessToken -> IO [(String, String)]
 deleteObjectImpl doer projectId bucket key accessToken =
   do
+    appendFile "keys.log" $ "KEY' " ++ key ++ "\nPATH' " ++ (makePath key) ++ "\n"
     let
       request = (makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, makePath key))
     doer request

@@ -24,7 +24,7 @@ module Main (
 import Control.Monad (liftM)
 import Data.Data(Data(..))
 import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (catMaybes)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractPasswords, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
