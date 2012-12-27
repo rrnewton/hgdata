@@ -16,7 +16,7 @@
 
 
 module Network.Google.Storage (
-  StorageAcl
+  StorageAcl(..)
 , deleteBucket
 , deleteBucketUsingManager
 , deleteObject

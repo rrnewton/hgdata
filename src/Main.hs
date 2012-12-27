@@ -24,11 +24,11 @@ module Main (
 import Control.Monad (liftM)
 import Data.Data(Data(..))
 import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromJust)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractPasswords, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
-import Network.Google.Storage (deleteObject, getBucket, getObject, headObject, putObject)
+import Network.Google.Storage (StorageAcl(Private), deleteObject, getBucket, getObject, headObject, putObject)
 import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
 import Network.Google.Storage.Sync (sync)
 import System.Console.CmdArgs
@@ -37,71 +37,72 @@ import Text.XML.Light (ppTopElement)
 
 data HGData =
     OAuth2Url {
-      clientId :: String
+      client :: String
    }
   | OAuth2Exchange {
-      clientId :: String
-    , clientSecret :: String
+      client :: String
+    , secret :: String
     , code :: String
-    , tokenFile :: FilePath
+    , tokens :: FilePath
   }
   | OAuth2Refresh {
-      clientId :: String
-    , clientSecret :: String
-    , refreshToken :: String
-    , tokenFile :: FilePath
+      client :: String
+    , secret :: String
+    , refresh :: String
+    , tokens :: FilePath
   }
   | Contacts {
-      accessToken :: String
-    , xmlOutput :: FilePath
-    , passwordOutput :: FilePath
+      access :: String
+    , xml :: FilePath
+    , passwords :: Maybe FilePath
+    , encrypt :: [String]
     }
   | SList {
-      accessToken :: String
-    , projectId :: String
+      access :: String
+    , project :: String
     , bucket :: String
-    , xmlOutput :: FilePath
+    , xml :: FilePath
     }
   | SGet {
-      accessToken :: String
-    , projectId :: String
+      access :: String
+    , project :: String
     , bucket :: String
     , key :: String
     , output :: FilePath
     , decrypt :: Bool
     }
   | SPut {
-      accessToken :: String
-    , projectId :: String
+      access :: String
+    , project :: String
     , bucket :: String
     , key :: String
     , input :: FilePath
     , acl :: String
-    , recipients :: [String]
+    , encrypt :: [String]
     }
   | SDelete {
-      accessToken :: String
-    , projectId :: String
+      access :: String
+    , project :: String
     , bucket :: String
     , key :: String
     }
   | SHead {
-      accessToken :: String
-    , projectId :: String
+      access :: String
+    , project :: String
     , bucket :: String
     , key :: String
     , output :: FilePath
   }
   | SSync {
-      clientId :: String
-    , clientSecret :: String
-    , refreshToken :: String
-    , projectId :: String
+      client :: String
+    , secret :: String
+    , refresh :: String
+    , project :: String
     , bucket :: String
     , directory :: FilePath
     , acl :: String
-    , recipients :: [String]
-    , exclusionFile :: FilePath
+    , encrypt :: [String]
+    , exclusions :: Maybe FilePath
     }
       deriving (Show, Data, Typeable)
 
@@ -109,46 +110,48 @@ data HGData =
 hgData :: HGData
 hgData =
   modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hGData v0.0.2, by B. W. Bush (b.w.bush@acm.org), CC0 1.0 Universal license."
+    &= summary "hgdata v0.0.2, by B. W. Bush (b.w.bush@acm.org), CC0 1.0 Universal license."
+    &= program "hgdata"
     &= help "Process Google data.  See <http://...> for more information."
 
 
 oAuth2Url :: HGData
 oAuth2Url = OAuth2Url
   {
-    clientId = def &= typ "<<client ID>>" &= argPos 0
+    client = def &= typ "ID" &= help "Client ID"
   }
-    &= help "Generate an OAuth 2 URL."
+    &= help "Generate an OAuth2 URL."
 
 
 oAuth2Exchange :: HGData
 oAuth2Exchange = OAuth2Exchange
   {
-    clientId = def &= typ "<<client ID>>" &= argPos 0
-  , clientSecret = def &= typ "<<client secret>>" &= argPos 2
-  , code = def &= typ "<<exchange code>>" &= argPos 3
-  , tokenFile = def &= typ "<<token file>>" &= argPos 4 &= opt "/dev/stdout"
+    client = def &= typ "ID" &= help "OAuth2 client ID"
+  , secret = def &= typ "SECRET" &= help "OAuth2 client secret"
+  , code = def &= typ "CODE" &= argPos 0
+  , tokens = def &= opt "/dev/stdout" &= typFile &= help "File for OAuth2 tokens"
   }
-    &= help "Exchange an OAuth 2 code for tokens."
+    &= help "Exchange an OAuth2 code for tokens."
 
 
 oAuth2Refresh :: HGData
 oAuth2Refresh = OAuth2Refresh
   {
-    clientId = def &= typ "<<client ID>>" &= argPos 0
-  , clientSecret = def &= typ "<<client secret>>" &= argPos 2
-  , refreshToken = def &= typ "<<refresh token>>" &= argPos 3
-  , tokenFile = def &= typ "<<token file>>" &= argPos 4 &= opt "/dev/stdout"
+    client = def &= typ "ID" &= help "OAuth2 client ID"
+  , secret = def &= typ "SECRET" &= help "OAuth2 client secret"
+  , refresh = def &= typ "TOKEN" &= help "OAuth2 refresh token"
+  , tokens = def &= opt "/dev/stdout" &= typFile &= help "Output for OAuth2 tokens"
   }
-    &= help "Exchange an OAuth 2 code for tokens."
+    &= help "Exchange an OAuth2 code for tokens."
 
 
 contacts :: HGData
 contacts = Contacts
   {
-    accessToken = def &= typ "<<access token>>" &= argPos 0
-  , xmlOutput = def &= typ "<<XML output file>>" &= argPos 1
-  , passwordOutput = def &= typ "<<password output file>>" &= argPos 2
+    access = def &= typ "TOKEN" &= help "OAuth2 access token"
+  , xml = def &= typFile &= argPos 0
+  , passwords = def &= typFile &= help "Output for passwords from \"Notes\" field"
+  , encrypt = def &= typ "RECIPIENT" &= help "recipient to encrypt for"
   }
     &= help "Download Google Contacts."
 
@@ -156,10 +159,10 @@ contacts = Contacts
 slist :: HGData
 slist = SList
   {
-    accessToken = def &= typ "<<access token>>" &= argPos 0
-  , projectId = def &= typ "<<project ID>>" &= argPos 1
-  , bucket = def &= typ "<<bucket name>>" &= argPos 2
-  , xmlOutput = def &= typ "<<XML output file>>" &= argPos 3
+    access = def &= typ "TOKEN" &= help "OAuth2 access token"
+  , project = def &= typ "ID" &= help "Google API project number"
+  , bucket = def &= typ "BUCKET" &= argPos 0
+  , xml = def &= opt "/dev/stdout" &= typFile &= argPos 1
   }
     &= help "List objects in a Google Storage bucket."
 
@@ -167,12 +170,12 @@ slist = SList
 sget :: HGData
 sget = SGet
   {
-    accessToken = def &= typ "<<access token>>" &= argPos 0
-  , projectId = def &= typ "<<project ID>>" &= argPos 1
-  , bucket = def &= typ "<<bucket name>>" &= argPos 2
-  , key = def &= typ "<<key name>" &= argPos 3
-  , output = def &= typ "<<output file>>" &= argPos 4
-  , decrypt = def &= typ "whether to decrypt the object"
+    access = def &= typ "TOKEN" &= help "OAuth2 access token"
+  , project = def &= typ "ID" &= help "Google API project number"
+  , bucket = def &= typ "BUCKET" &= argPos 0
+  , key = def &= typ "KEY" &= argPos 1
+  , output = def &= opt "/dev/stdout" &= typFile &= argPos 2
+  , decrypt = def &= help "Attempt to decrypt the object"
   }
     &= help "Get an object from a Google Storage bucket."
 
@@ -180,13 +183,13 @@ sget = SGet
 sput :: HGData
 sput = SPut
   {
-    accessToken = def &= typ "<<access token>>" &= argPos 0
-  , projectId = def &= typ "<<project ID>>" &= argPos 1
-  , bucket = def &= typ "<<bucket name>>" &= argPos 2
-  , key = def &= typ "<<key name>" &= argPos 3
-  , input = def &= typ "<<input file>>" &= argPos 4
-  , acl = def &= typ "<<access control>>" &= argPos 5 &= opt "private"
-  , recipients = def &= typ "<<recipient for which to encrypt the object>>"
+    access = def &= typ "TOKEN" &= help "OAuth2 access token"
+  , project = def &= typ "ID" &= help "Google API project number"
+  , bucket = def &= typ "BUCKET" &= argPos 0
+  , key = def &= typ "KEY" &= argPos 1
+  , input = def &= opt "/dev/stdin" &= typFile &= argPos 2
+  , acl = def &= {-- FIXME: This doesn't seem to work. --} opt "private" &= typ "ACCESS" &= help "Pre-defined ACL"
+  , encrypt = def &= typ "RECIPIENT" &= help "Recipient to encrypt for"
   }
     &= help "Put an object into a Google Storage bucket."
 
@@ -194,10 +197,10 @@ sput = SPut
 sdelete :: HGData
 sdelete = SDelete
   {
-    accessToken = def &= typ "<<access token>>" &= argPos 0
-  , projectId = def &= typ "<<project ID>>" &= argPos 1
-  , bucket = def &= typ "<<bucket name>>" &= argPos 2
-  , key = def &= typ "<<key name>" &= argPos 3
+    access = def &= typ "TOKEN" &= help "OAuth2 access token"
+  , project = def &= typ "ID" &= help "Google API project number"
+  , bucket = def &= typ "BUCKET" &= argPos 0
+  , key = def &= typ "KEY" &= argPos 1
   }
     &= help "Delete an object from a Google Storage bucket."
 
@@ -205,11 +208,11 @@ sdelete = SDelete
 shead :: HGData
 shead = SHead
   {
-    accessToken = def &= typ "<<access token>>" &= argPos 0
-  , projectId = def &= typ "<<project ID>>" &= argPos 1
-  , bucket = def &= typ "<<bucket name>>" &= argPos 2
-  , key = def &= typ "<<key name>" &= argPos 3
-  , output = def &= typ "<<output file>>" &= argPos 4
+    access = def &= typ "TOKEN" &= help "OAuth2 access token"
+  , project = def &= typ "ID" &= help "Google API project number"
+  , bucket = def &= typ "BUCKET" &= argPos 0
+  , key = def &= typ "KEY" &= argPos 1
+  , output = def &= opt "/dev/stdout" &= typFile &= argPos 2
   }
     &= help "Get object metadata from a Google Storage bucket."
 
@@ -217,15 +220,15 @@ shead = SHead
 ssync :: HGData
 ssync = SSync
   {
-    clientId = def &= typ "<<client ID>>" &= argPos 0
-  , clientSecret = def &= typ "<<client secret>>" &= argPos 1
-  , refreshToken = def &= typ "<<refresh token>>" &= argPos 2
-  , projectId = def &= typ "<<project ID>>" &= argPos 3
-  , bucket = def &= typ "<<bucket name>>" &= argPos 4
-  , directory = def &= typ "<<directory>>" &= argPos 5
-  , acl = def &= typ "<<access control>>" &= argPos 6 &= opt "private"
-  , recipients = def &= typ "<<recipient for which to encrypt the object>>"
-  , exclusionFile = def &= typ "<<file of regular expressions for files to exclude>>"
+    client = def &= typ "ID" &= help "OAuth2 client ID"
+  , secret = def &= typ "SECRET" &= help "OAuth2 client secret"
+  , refresh = def &= typ "TOKEN" &= help "OAuth2 refresh token"
+  , project = def &= typ "ID" &= help "Google API project number"
+  , bucket = def &= typ "BUCKET" &= argPos 0
+  , directory = def &= typ "DIRECTORY" &= argPos 1
+  , acl = def &= {-- FIXME: This doesn't seem to work. --} opt "private" &= typ "ACCESS" &= help "Pre-defined ACL"
+  , encrypt = def &= typ "RECIPIENT" &= help "Recipient to encrypt for"
+  , exclusions = def &= typFile &= help "File of regex exclusions"
   }
     &= help "Synchronize a directory with a Google Storage bucket."
 
@@ -247,12 +250,19 @@ dispatch (OAuth2Refresh clientId clientSecret refreshToken tokenFile) =
     tokens <- OA2.refreshTokens (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined)
     writeFile tokenFile $ show tokens
 
-dispatch (Contacts accessToken xmlOutput passwordOutput) =
+dispatch (Contacts accessToken xmlOutput passwordOutput recipients) =
   do
     contacts <- liftM ppTopElement . listContacts $ toAccessToken accessToken
     writeFile xmlOutput contacts
-    passwords <- extractPasswords ["example-recipient"] contacts
-    writeFile passwordOutput passwords
+    maybe
+      (return ())
+      (
+        \x ->
+        do
+          passwords <- extractPasswords recipients contacts
+          writeFile x passwords
+      )
+      passwordOutput
 
 dispatch (SList accessToken projectId bucket xmlOutput) =
   do
@@ -284,8 +294,11 @@ dispatch (SHead accessToken projectId bucket key output) =
 
 dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients exclusionFile) =
   do
-    exclusions <- liftM lines $ readFile exclusionFile
-    sync projectId (read acl) bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients exclusions
+    let
+      acl' = if acl == "" then Private else read acl
+    exclusions <- liftM lines $ maybe (return "") readFile exclusionFile
+    print $ show acl
+    sync projectId acl' bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients exclusions
 
 
 main :: IO ()
