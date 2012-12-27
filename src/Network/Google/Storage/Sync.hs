@@ -124,6 +124,7 @@ sync' lister putter deleter client tokens directory byETag excluder =
       local' = filter excluder local
       changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
       deletedObjects = deleteFirstsBy sameKey remote local'
+    putStrLn $ "EXCLUDED " ++ show (length local - length local')
     putStrLn $ "PUTS " ++ show (length changedObjects)
     putStrLn $ "DELETES " ++ show (length deletedObjects)
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects

@@ -297,7 +297,6 @@ dispatch (SSync clientId clientSecret refreshToken projectId bucket directory ac
     let
       acl' = if acl == "" then Private else read acl
     exclusions <- liftM lines $ maybe (return "") readFile exclusionFile
-    print $ show acl
     sync projectId acl' bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients exclusions
 
 
