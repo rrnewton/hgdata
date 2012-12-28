@@ -51,8 +51,8 @@ type Deleter = String -> AccessToken -> IO [(String, String)]
 type Excluder = ObjectMetadata -> Bool
 
 
-sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> [String] -> IO ()
-sync projectId acl bucket client tokens directory recipients exclusions =
+sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> [String] -> Bool -> IO ()
+sync projectId acl bucket client tokens directory recipients exclusions md5sums =
   do
     manager <- newManager def
     finally
@@ -64,6 +64,7 @@ sync projectId acl bucket client tokens directory recipients exclusions =
           client tokens directory
           (null recipients)
           (makeExcluder exclusions)
+          md5sums
       )(
         closeManager manager
       )
@@ -99,8 +100,8 @@ makeExcluder exclusions =
       not $ or $ map match exclusions
 
 
-sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> IO ()
-sync' lister putter deleter client tokens directory byETag excluder =
+sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> Bool -> IO ()
+sync' lister putter deleter client tokens directory byETag excluder md5sums =
   do
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
@@ -130,8 +131,9 @@ sync' lister putter deleter client tokens directory byETag excluder =
     putStrLn $ "DELETES " ++ show (length deletedObjects)
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- walkDeleter client tokenClock' deleter deletedObjects
-    writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
-    return ()
+    if md5sums
+      then writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
+      else return ()
 
 
 walkPutter :: OAuth2Client -> TokenClock -> FilePath -> Putter -> [ObjectMetadata] -> IO TokenClock

@@ -103,6 +103,7 @@ data HGData =
     , acl :: String
     , encrypt :: [String]
     , exclusions :: Maybe FilePath
+    , md5sums :: Bool
     }
       deriving (Show, Data, Typeable)
 
@@ -229,6 +230,7 @@ ssync = SSync
   , acl = def &= opt "private" &= typ "ACL" &= argPos 2
   , encrypt = def &= typ "RECIPIENT" &= help "Recipient to encrypt for"
   , exclusions = def &= typFile &= help "File of regex exclusions"
+  , md5sums = def &= help "Write file \".md5sum\" in directory"
   }
     &= help "Synchronize a directory with a Google Storage bucket."
 
@@ -292,12 +294,12 @@ dispatch (SHead accessToken projectId bucket key output) =
     result <- headObject projectId bucket key (toAccessToken accessToken)
     writeFile output $ show result
 
-dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients exclusionFile) =
+dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients exclusionFile md5sums) =
   do
     let
       acl' = if acl == "" then Private else read acl
     exclusions <- liftM lines $ maybe (return "") readFile exclusionFile
-    sync projectId acl' bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients exclusions
+    sync projectId acl' bucket (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined) directory recipients exclusions md5sums
 
 
 main :: IO ()
