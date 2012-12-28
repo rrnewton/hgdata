@@ -23,6 +23,7 @@ module Network.Google.Storage.Sync (
 
 import Control.Exception (SomeException, finally, handle)
 import Control.Monad (filterM, liftM)
+import Crypto.MD5 (md5Base64)
 import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
@@ -45,7 +46,7 @@ import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildNam
 
 
 type Lister = AccessToken -> IO Element
-type Putter = String -> Maybe String -> LBS.ByteString -> AccessToken -> IO [(String, String)]
+type Putter = String -> Maybe String -> LBS.ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
 type Deleter = String -> AccessToken -> IO [(String, String)]
 type Excluder = ObjectMetadata -> Bool
 
@@ -118,7 +119,7 @@ sync' lister putter deleter client tokens directory byETag excluder =
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool
       sameKey (ObjectMetadata key _ _ _) (ObjectMetadata key' _ _ _) = key == key'
       sameETag :: ObjectMetadata -> ObjectMetadata -> Bool
-      sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && eTag == eTag'
+      sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && fst eTag == fst eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
       earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > (addUTCTime tolerance time')
       local' = filter excluder local
@@ -129,6 +130,7 @@ sync' lister putter deleter client tokens directory byETag excluder =
     putStrLn $ "DELETES " ++ show (length deletedObjects)
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- walkDeleter client tokenClock' deleter deletedObjects
+    writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
     return ()
 
 
@@ -145,7 +147,7 @@ walkPutter client (expirationTime, tokens) directory putter (x : xs) =
       (
         do
           bytes <- LBS.readFile $ directory ++ [pathSeparator] ++ key'
-          putter key' Nothing bytes (toAccessToken $ accessToken tokens')
+          putter key' Nothing bytes (Just $ eTag x) (toAccessToken $ accessToken tokens')
           return ()
       )
     walkPutter client (expirationTime', tokens') directory putter xs
@@ -176,7 +178,7 @@ handler exception = putStrLn $ "  FAIL " ++ show exception
 data ObjectMetadata = ObjectMetadata
   {
     key :: String
-  , eTag :: String
+  , eTag :: (String, String)
   , size :: Int
   , lastModified :: UTCTime
   }
@@ -196,7 +198,7 @@ parseMetadata root =
         eTag <- finder "ETag" element
         size <- finder "Size" element
         lastModified <- finder "LastModified" element
-        return $ ObjectMetadata key (tail . init $ eTag) (read size) (fromJust $ parseTime defaultTimeLocale "%FT%T%QZ" lastModified)
+        return $ ObjectMetadata key (tail . init $ eTag, undefined) (read size) (fromJust $ parseTime defaultTimeLocale "%FT%T%QZ" lastModified)
   in
     catMaybes $ map makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
 
@@ -231,8 +233,8 @@ walkDirectories' directory (y : ys) =
                 lastTime = posixSecondsToUTCTime $ realToFrac $ modificationTime status
                 size :: Int
                 size = fromIntegral $ fileSize status
-              let !eTag = MD5.md5 bytes
-              return $ ObjectMetadata key (show eTag) size lastTime
+              let !eTag = md5Base64 bytes
+              return $ ObjectMetadata key eTag size lastTime
         files <- liftM (map ((y ++ [pathSeparator]) ++))
                $ liftM ( \\ [".", ".."])
                $ getDirectoryContents (directory ++ y)

@@ -203,24 +203,25 @@ getObjectImpl doer projectId bucket key accessToken =
 postObject = undefined
 
 
-putObject :: String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putObject :: String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
 putObject = putObjectImpl doRequest
 
 
-putObjectUsingManager :: Manager -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putObjectUsingManager :: Manager -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
 putObjectUsingManager = putObjectImpl . doManagedRequest
 
 
-putObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
-putObjectImpl doer projectId acl bucket key mimeType bytes accessToken =
+putObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
+putObjectImpl doer projectId acl bucket key mimeType bytes md5 accessToken =
   do
     let
+      md5' = maybe (snd $ md5Base64 bytes) snd md5
       request =
         appendBody bytes $
         appendHeaders (
           [
             ("x-goog-acl", show acl)
-          , ("Content-MD5", snd $ md5Base64 bytes)
+          , ("Content-MD5", md5')
           ]
           ++
           maybe [] (\x -> [("Content-Type", x)]) mimeType

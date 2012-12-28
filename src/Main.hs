@@ -279,7 +279,7 @@ dispatch (SPut accessToken projectId bucket key input acl recipients) =
   do
     let putter = if null recipients then putObject else putEncryptedObject recipients
     bytes <- LBS.readFile input
-    putter projectId (read acl) bucket key Nothing bytes (toAccessToken accessToken)
+    putter projectId (read acl) bucket key Nothing bytes Nothing (toAccessToken accessToken)
     return ()
 
 dispatch (SDelete accessToken projectId bucket key) =

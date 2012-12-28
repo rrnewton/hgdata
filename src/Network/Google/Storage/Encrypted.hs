@@ -43,16 +43,16 @@ getEncryptedObjectImpl getter projectId bucket key accessToken =
     decryptLbs $ bytes
 
 
-putEncryptedObject :: [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putEncryptedObject :: [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
 putEncryptedObject = putEncryptedObjectImpl putObject
 
 
-putEncryptedObjectUsingManager :: Manager -> [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
+putEncryptedObjectUsingManager :: Manager -> [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
 putEncryptedObjectUsingManager = putEncryptedObjectImpl . putObjectUsingManager
 
 
-putEncryptedObjectImpl :: (String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]) -> [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> AccessToken -> IO [(String, String)]
-putEncryptedObjectImpl putter recipients projectId acl bucket key _ bytes accessToken =
+putEncryptedObjectImpl :: (String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]) -> [String] -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
+putEncryptedObjectImpl putter recipients projectId acl bucket key _ bytes _ accessToken =
   do
     bytes' <- encryptLbs recipients bytes
-    putter projectId acl bucket key (Just "application/pgp-encrypted") bytes' accessToken
+    putter projectId acl bucket key (Just "application/pgp-encrypted") bytes' Nothing accessToken
