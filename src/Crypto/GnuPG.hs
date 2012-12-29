@@ -37,8 +37,8 @@ decrypt input =
       "gpg"
       [
         "--decrypt"
-      , "--quiet"
       , "--no-mdc-warning"
+      , "--quiet"
       , "--batch"
       ]
       Nothing
@@ -54,19 +54,18 @@ decrypt input =
     return output
 
 
-encrypt :: Bool -> [String] -> String -> IO String
-encrypt armor recipients input =
+encrypt :: [String] -> String -> IO String
+encrypt recipients input =
   do
     (hIn, hOut, _, _) <- runInteractiveProcess
       "gpg"
       (
         [
           "--encrypt"
+        , "--armor"
         , "--quiet"
         , "--batch"
         ]
-        ++
-        if armor then ["--armor"] else []
         ++
         concatMap (\r -> ["--recipient", r]) recipients
       )
@@ -90,8 +89,8 @@ decryptLbs input =
       "gpg"
       [
         "--decrypt"
-      , "--quiet"
       , "--no-mdc-warning"
+      , "--quiet"
       , "--batch"
       ]
       Nothing
@@ -107,8 +106,8 @@ decryptLbs input =
     return output
 
 
-encryptLbs :: Bool -> [String] -> LBS.ByteString -> IO LBS.ByteString
-encryptLbs armor recipients input =
+encryptLbs :: [String] -> LBS.ByteString -> IO LBS.ByteString
+encryptLbs recipients input =
   do
     (hIn, hOut, _, _) <- runInteractiveProcess
       "gpg"
@@ -118,8 +117,6 @@ encryptLbs armor recipients input =
         , "--quiet"
         , "--batch"
         ]
-        ++
-        if armor then ["--armor"] else []
         ++
         concatMap (\r -> ["--recipient", r]) recipients
       )
