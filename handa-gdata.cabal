@@ -22,6 +22,21 @@ source-repository head
     type: mercurial
     location: https://code.google.com/p/hgdata/
  
+library
+    build-depends: HTTP -any, base -any, base64-bytestring -any,
+                   binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
+                   directory -any, filepath -any, http-conduit -any, json -any,
+                   old-locale -any, process -any, pureMD5 -any, regex-posix -any,
+                   resourcet -any, text -any, time -any, unix -any, xml -any
+    exposed-modules: Network.Google Network.Google.Contacts
+                     Network.Google.OAuth2 Network.Google.Storage
+                     Network.Google.Storage.Encrypted
+    exposed: True
+    buildable: True
+    hs-source-dirs: src
+    other-modules: Crypto.GnuPG
+                   Crypto.MD5 Data.ByteString.Util Data.List.Util
+ 
 executable hgdata
     build-depends: HTTP -any, base -any, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
