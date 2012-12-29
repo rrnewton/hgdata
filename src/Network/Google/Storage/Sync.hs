@@ -55,6 +55,8 @@ sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePa
 sync projectId acl bucket client tokens directory recipients exclusions md5sums purge =
   do
     manager <- newManager def
+    putStrLn $ "DIRECTORY " ++ directory
+    putStrLn $ "BUCKET " ++ bucket
     finally
       (
         sync'
@@ -104,6 +106,10 @@ makeExcluder exclusions =
 sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> Bool -> Bool -> IO ()
 sync' lister putter deleter client tokens directory byETag excluder md5sums purge =
   do
+    putStr "LOCAL "
+    hFlush stdout
+    local <- walkDirectories directory
+    putStrLn $ show $ length local
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
     putStr "REMOTE "
@@ -112,10 +118,6 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
     let
       remote = parseMetadata remote'
     putStrLn $ show $ length remote
-    putStr "LOCAL "
-    hFlush stdout
-    local <- walkDirectories directory
-    putStrLn $ show $ length local
     let
       tolerance = 300
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool
@@ -127,11 +129,13 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
       local' = filter excluder local
       changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
       deletedObjects = deleteFirstsBy sameKey remote local'
-    putStrLn $ "EXCLUDED " ++ show (length local - length local')
+    putStr $ "EXCLUDED "
+    hFlush stdout
+    putStrLn $ show (length local - length local')
     putStrLn $ "PUTS " ++ show (length changedObjects)
-    if purge
-      then putStrLn $ "DELETES " ++ show (length deletedObjects)
-      else return ()
+    putStr $ "DELETES "
+    hFlush stdout
+    putStrLn $ show (length deletedObjects)
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- if purge
       then
