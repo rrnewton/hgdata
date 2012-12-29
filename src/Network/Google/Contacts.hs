@@ -63,7 +63,7 @@ extractPasswords recipients text =
           p' <- decrypt p
           return $ unlines $ ["-----", "", t, o, "", p']
     passwords' <- mapM replacePassword passwords
-    (if null recipients then return . id else encrypt recipients) $ unlines passwords'
+    (if null recipients then return . id else encrypt True recipients) $ unlines passwords'
 
 
 extractPasswords' :: String -> [(String, String, String)]
