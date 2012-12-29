@@ -1,12 +1,12 @@
 -----------------------------------------------------------------------------
 --
 -- Module      :  Network.Google.Storage.Sync
--- Copyright   :
--- License     :  AllRightsReserved
+-- Copyright   :  (c) 2012-13 Brian W Bush
+-- License     :  MIT
 --
--- Maintainer  :
--- Stability   :
--- Portability :
+-- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
+-- Stability   :  Stable
+-- Portability :  Linux
 --
 -- |
 --
@@ -51,8 +51,8 @@ type Deleter = String -> AccessToken -> IO [(String, String)]
 type Excluder = ObjectMetadata -> Bool
 
 
-sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> [String] -> Bool -> IO ()
-sync projectId acl bucket client tokens directory recipients exclusions md5sums =
+sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> [String] -> Bool -> Bool -> IO ()
+sync projectId acl bucket client tokens directory recipients exclusions md5sums purge =
   do
     manager <- newManager def
     finally
@@ -65,6 +65,7 @@ sync projectId acl bucket client tokens directory recipients exclusions md5sums 
           (null recipients)
           (makeExcluder exclusions)
           md5sums
+          purge
       )(
         closeManager manager
       )
@@ -100,8 +101,8 @@ makeExcluder exclusions =
       not $ or $ map match exclusions
 
 
-sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> Bool -> IO ()
-sync' lister putter deleter client tokens directory byETag excluder md5sums =
+sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> Bool -> Bool -> IO ()
+sync' lister putter deleter client tokens directory byETag excluder md5sums purge =
   do
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
@@ -128,9 +129,15 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums =
       deletedObjects = deleteFirstsBy sameKey remote local'
     putStrLn $ "EXCLUDED " ++ show (length local - length local')
     putStrLn $ "PUTS " ++ show (length changedObjects)
-    putStrLn $ "DELETES " ++ show (length deletedObjects)
+    if purge
+      then putStrLn $ "DELETES " ++ show (length deletedObjects)
+      else return ()
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
-    tokenClock'' <- walkDeleter client tokenClock' deleter deletedObjects
+    tokenClock'' <- if purge
+      then
+        walkDeleter client tokenClock' deleter deletedObjects
+      else
+        return tokenClock'
     if md5sums
       then writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
       else return ()
@@ -236,6 +243,8 @@ walkDirectories' directory (y : ys) =
                 size :: Int
                 size = fromIntegral $ fileSize status
               let !eTag = md5Base64 bytes
+              let !x = fst eTag
+              let !y = snd eTag
               return $ ObjectMetadata key eTag size lastTime
         files <- liftM (map ((y ++ [pathSeparator]) ++))
                $ liftM ( \\ [".", ".."])

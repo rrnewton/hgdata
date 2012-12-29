@@ -1,12 +1,12 @@
 -----------------------------------------------------------------------------
 --
 -- Module      :  Network.Google.OAuth2
--- Copyright   :
--- License     :  AllRightsReserved
+-- Copyright   :  (c) 2012-13 Brian W Bush
+-- License     :  MIT
 --
--- Maintainer  :
--- Stability   :
--- Portability :
+-- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
+-- Stability   :  Stable
+-- Portability :  Linux
 --
 -- |
 --

@@ -1,11 +1,26 @@
 name: handa-gdata
-version: 0.0.2
+version: 0.1.0
 cabal-version: >=1.2
 build-type: Simple
-license: AllRightsReserved
-license-file: ""
-description:  
+license: MIT
+license-file: LICENSE
+copyright: (c) 2012-13 Brian W Bush
+maintainer: Brian W Bush <b.w.bush@acm.org>
+stability: Stable
+homepage: http://code.google.com/p/hgdata
+package-url: http://code.google.com/p/hgdata/downloads/list
+bug-reports: http://code.google.com/p/hgdata/issues/entry
+synopsis: Library and command-line utility for accessing Google services and APIs.
+description: This package provides access to the following Google APIs:
+             * Google Contacts <https://developers.google.com/google-apps/contacts/v3/>
+             * Google Storage <https://developers.google.com/storage/docs/developer-guide>
+category: Network
+author: Brian W Bush <b.w.bush@acm.org>
 data-dir: ""
+ 
+source-repository head
+    type: mercurial
+    location: https://code.google.com/p/hgdata/
  
 executable hgdata
     build-depends: HTTP -any, base -any, base64-bytestring -any,
