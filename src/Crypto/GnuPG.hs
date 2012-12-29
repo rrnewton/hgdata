@@ -21,9 +21,13 @@ module Crypto.GnuPG (
 ) where
 
 
+import Control.Concurrent (forkIO)
 import qualified Data.ByteString.Lazy as LBS (ByteString, hGetContents, hPutStr)
 import System.Process (runInteractiveProcess)
-import System.IO (hClose, hGetContents, hPutStr)
+import System.IO (hClose, hFlush, hGetContents, hPutStr)
+
+
+import Data.ByteString.Util (lbsToS', sToLbs')
 
 
 decrypt :: String -> IO String
@@ -39,8 +43,13 @@ decrypt input =
       ]
       Nothing
       Nothing
-    hPutStr hIn input
-    hClose hIn
+    forkIO
+      (
+        do
+          hPutStr hIn input
+          hFlush hIn
+          hClose hIn
+      )
     output <- hGetContents hOut
     return output
 
@@ -54,18 +63,22 @@ encrypt armor recipients input =
         [
           "--encrypt"
         , "--quiet"
-        , "--no-mdc-warning"
         , "--batch"
         ]
         ++
-        concatMap (\r -> ["--recipient", r]) recipients
-        ++
         if armor then ["--armor"] else []
+        ++
+        concatMap (\r -> ["--recipient", r]) recipients
       )
       Nothing
       Nothing
-    hPutStr hIn input
-    hClose hIn
+    forkIO
+      (
+        do
+          hPutStr hIn input
+          hFlush hIn
+          hClose hIn
+      )
     output <- hGetContents hOut
     return output
 
@@ -83,8 +96,13 @@ decryptLbs input =
       ]
       Nothing
       Nothing
-    LBS.hPutStr hIn input
-    hClose hIn
+    forkIO
+      (
+        do
+          LBS.hPutStr hIn input
+          hFlush hIn
+          hClose hIn
+      )
     output <- LBS.hGetContents hOut
     return output
 
@@ -98,17 +116,21 @@ encryptLbs armor recipients input =
         [
           "--encrypt"
         , "--quiet"
-        , "--no-mdc-warning"
         , "--batch"
         ]
         ++
-        concatMap (\r -> ["--recipient", r]) recipients
-        ++
         if armor then ["--armor"] else []
+        ++
+        concatMap (\r -> ["--recipient", r]) recipients
       )
       Nothing
       Nothing
-    LBS.hPutStr hIn input
-    hClose hIn
+    forkIO
+      (
+        do
+          LBS.hPutStr hIn input
+          hFlush hIn
+          hClose hIn
+      )
     output <- LBS.hGetContents hOut
     return output
