@@ -126,15 +126,20 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && fst eTag == fst eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
       earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > (addUTCTime tolerance time')
-      local' = filter excluder local
-      changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
-      deletedObjects = deleteFirstsBy sameKey remote local'
     putStr $ "EXCLUDED "
     hFlush stdout
+    let
+      local' = filter excluder local
     putStrLn $ show (length local - length local')
-    putStrLn $ "PUTS " ++ show (length changedObjects)
+    putStr $ "PUTS "
+    hFlush stdout
+    let
+      changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
+    putStrLn $ show (length changedObjects)
     putStr $ "DELETES "
     hFlush stdout
+    let
+      deletedObjects = deleteFirstsBy sameKey remote local'
     putStrLn $ show (length deletedObjects)
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- if purge
