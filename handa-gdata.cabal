@@ -1,6 +1,6 @@
 name: handa-gdata
 version: 0.2.0
-cabal-version: >=1.2
+cabal-version: >=1.6
 build-type: Simple
 license: MIT
 license-file: LICENSE
@@ -23,7 +23,7 @@ source-repository head
     location: https://code.google.com/p/hgdata/
  
 library
-    build-depends: HTTP -any, base -any, base64-bytestring -any,
+    build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
                    directory -any, filepath -any, http-conduit -any, json -any,
                    old-locale -any, process -any, pureMD5 -any, regex-posix -any,
@@ -38,7 +38,7 @@ library
     other-modules: Data.ByteString.Util Data.List.Util
  
 executable hgdata
-    build-depends: HTTP -any, base -any, base64-bytestring -any,
+    build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
                    directory -any, filepath -any, http-conduit -any, json -any,
                    old-locale -any, process -any, pureMD5 -any, regex-posix -any,
