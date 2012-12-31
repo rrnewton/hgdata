@@ -114,7 +114,7 @@ data HGData =
 hgData :: HGData
 hgData =
   modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.2.0, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+    &= summary "hgData v0.3.1, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help
       (
