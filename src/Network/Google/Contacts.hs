@@ -16,7 +16,7 @@
 module Network.Google.Contacts (
 -- * Functions
   listContacts
-, extractPasswords
+, extractGnuPGNotes
 ) where
 
 
@@ -62,15 +62,15 @@ listContactsRequest accessToken =
   }
 
 
--- | Extract the passwords from a contact list.  Passwords are re-encrypted if recipients for the re-encrypted list are specified.
-extractPasswords ::
-     [Recipient]  -- ^ The recipients to re-encrypt the passwords to.
-  -> String       -- ^ The contact list.
-  -> IO String    -- ^ The action return the decrypted and then possibly re-encrypted passwords.
-extractPasswords recipients text =
+-- | Extract the GnuPG\/PGP text in the \"Notes\" fields of a contact list.  Extracts are re-encrypted if recipients for the re-encrypted list are specified.
+extractGnuPGNotes ::
+     [Recipient]  -- ^ The recipients to re-encrypt the extracts to.
+  -> Element      -- ^ The contact list.
+  -> IO String    -- ^ The action return the decrypted and then possibly re-encrypted extracts.
+extractGnuPGNotes recipients text =
   do
     let
-      passwords = extractPasswords' text
+      passwords = extractGnuPGNotes' text
       replacePassword (t, o, p) =
         do
           p' <- decrypt p
@@ -79,11 +79,11 @@ extractPasswords recipients text =
     (if null recipients then return . id else encrypt recipients) $ unlines passwords'
 
 
--- | Extract the passwords from a contact list.
-extractPasswords' ::
-     String                      -- ^ The contact list.
-  -> [(String, String, String)]  -- ^ The contacts in (title, organization, GnuPG text) format.
-extractPasswords' text =
+-- | Extract the GnuPG\/PGP from a contact list.
+extractGnuPGNotes' ::
+     Element                     -- ^ The contact list.
+  -> [(String, String, String)]  -- ^ The contacts in (title, organization, GnuPG\/PGP extract) format.
+extractGnuPGNotes' xml =
   let
     findChildName :: String -> Element -> Maybe Element
     findChildName x = filterChildName (\z -> qName z == x)
@@ -102,7 +102,5 @@ extractPasswords' text =
         o <- getOrganization x
         p <- getPGP x
         return (t, o, p)
-    xml :: Element
-    xml = fromJust $ parseXMLDoc text
   in
     catMaybes $ map getEntry $ elChildren xml

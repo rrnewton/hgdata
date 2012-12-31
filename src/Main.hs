@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  POSIX
+-- Portability :  Linux
 --
 -- |  Command-line access to Google APIs.
 --
@@ -26,7 +26,7 @@ import Data.Data(Data(..))
 import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
 import Data.Maybe (catMaybes)
 import Network.Google (AccessToken, toAccessToken)
-import Network.Google.Contacts (extractPasswords, listContacts)
+import Network.Google.Contacts (extractGnuPGNotes, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
 import Network.Google.Storage (StorageAcl(Private), deleteObject, getBucket, getObject, headObject, putObject)
 import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
@@ -356,14 +356,14 @@ dispatch (OAuth2Refresh clientId clientSecret refreshToken tokenFile) =
 
 dispatch (Contacts accessToken xmlOutput passwordOutput recipients) =
   do
-    contacts <- liftM ppTopElement . listContacts $ toAccessToken accessToken
-    writeFile xmlOutput contacts
+    contacts <- listContacts $ toAccessToken accessToken
+    writeFile xmlOutput $ ppTopElement contacts
     maybe
       (return ())
       (
         \x ->
         do
-          passwords <- extractPasswords recipients contacts
+          passwords <- extractGnuPGNotes recipients contacts
           writeFile x passwords
       )
       passwordOutput
