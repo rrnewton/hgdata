@@ -139,7 +139,7 @@ oAuth2Url = OAuth2Url
       ]
 
 
--- | Exchange an OAuth2 code for tokens.
+-- | Exchange an OAuth 2.0 code for tokens.
 oAuth2Exchange :: HGData
 oAuth2Exchange = OAuth2Exchange
   {
@@ -148,7 +148,7 @@ oAuth2Exchange = OAuth2Exchange
   , code = def &= typ "CODE" &= argPos 0
   , tokens = def &= opt "/dev/stdout" &= typFile &= argPos 1
   }
-    &= help "Exchange an OAuth2 code for tokens."
+    &= help "Exchange an OAuth 2.0 code for tokens."
     &= details
       [
         "Use this command to exchange an OAuth 2.0 authentication code for an access and refresh token."
@@ -159,7 +159,7 @@ oAuth2Exchange = OAuth2Exchange
       ]
 
 
--- | Exchange an OAuth 2.0 code for tokens.
+-- | Refresh OAuth 2.0 tokens.
 oAuth2Refresh :: HGData
 oAuth2Refresh = OAuth2Refresh
   {
@@ -168,7 +168,7 @@ oAuth2Refresh = OAuth2Refresh
   , refresh = def &= typ "TOKEN" &= help "OAuth 2.0 refresh token"
   , tokens = def &= opt "/dev/stdout" &= typFile &= argPos 0
   }
-    &= help "Exchange an OAuth 2.0 code for tokens."
+    &= help "Refresh OAuth 2.0 tokens."
     &= details
       [
         "Use this command to refresh an OAuth 2.0 access token."

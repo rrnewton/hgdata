@@ -8,7 +8,7 @@
 -- Stability   :  Stable
 -- Portability :  Portable.
 --
--- |
+-- | Functions for accessing the Google Contacts API, see <https://developers.google.com/google-apps/contacts/v3/>.
 --
 -----------------------------------------------------------------------------
 
@@ -40,7 +40,7 @@ contactsApi :: (String, String)
 contactsApi = ("Gdata-version", "3.0")
 
 
--- | List the contacts.
+-- | List the contacts, see <https://developers.google.com/google-apps/contacts/v3/#retrieving_all_contacts>.
 listContacts ::
      AccessToken  -- ^ The OAuth 2.0 access token.
   -> IO Element   -- ^ The action returning the contacts in XML format.
