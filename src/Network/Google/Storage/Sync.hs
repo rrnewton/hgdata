@@ -222,11 +222,11 @@ walkPutter ::
   -> [ObjectMetadata]  -- ^ Description of the objects to be put.
   -> IO TokenClock     -- ^ The action to update the token and its expiration.
 walkPutter _ tokenClock _ _ [] = return tokenClock
-walkPutter client (expirationTime, tokens) directory putter (x : xs) =
+walkPutter client tokenClock directory putter (x : xs) =
   do
     let
       key' = key x
-    (expirationTime', tokens') <- checkExpiration client (expirationTime, tokens)
+    tokenClock'@(_, tokens') <- checkExpiration client tokenClock
     putStrLn $ "PUT " ++ key'
     handle
       handler
@@ -236,7 +236,7 @@ walkPutter client (expirationTime, tokens) directory putter (x : xs) =
           putter key' Nothing bytes (Just $ eTag x) (toAccessToken $ accessToken tokens')
           return ()
       )
-    walkPutter client (expirationTime', tokens') directory putter xs
+    walkPutter client tokenClock' directory putter xs
 
 
 -- | Delete a list of objects.
@@ -247,11 +247,11 @@ walkDeleter ::
   -> [ObjectMetadata]  -- ^ Description of the objects to be deleted.
   -> IO TokenClock     -- ^ The action to update the token and its expiration.
 walkDeleter _ tokenClock _ [] = return tokenClock
-walkDeleter client (expirationTime, tokens) deleter (x : xs) =
+walkDeleter client tokenClock deleter (x : xs) =
   do
     let
       key' = key x
-    (expirationTime', tokens') <- checkExpiration client (expirationTime, tokens)
+    tokenClock'@(_, tokens') <- checkExpiration client tokenClock
     putStrLn $ "DELETE " ++ key'
     handle
       handler
@@ -260,7 +260,7 @@ walkDeleter client (expirationTime, tokens) deleter (x : xs) =
           deleter key' (toAccessToken $ accessToken tokens')
           return ()
       )
-    walkDeleter client (expirationTime, tokens') deleter xs
+    walkDeleter client tokenClock' deleter xs
 
 
 -- |
