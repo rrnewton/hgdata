@@ -68,7 +68,9 @@ sync projectId acl bucket client tokens directory recipients exclusions md5sums 
   do
     manager <- newManager def
     putStrLn $ "DIRECTORY " ++ directory
+    putStrLn $ "PROJECT " ++ projectId
     putStrLn $ "BUCKET " ++ bucket
+    putStrLn $ "ACCESS " ++ show acl
     finally
       (
         sync'
