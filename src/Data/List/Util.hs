@@ -1,16 +1,17 @@
 -----------------------------------------------------------------------------
 --
 -- Module      :  Data.List.Util
--- Copyright   :
--- License     :  AllRightsReserved
+-- Copyright   :  (c) 2012-13 Brian W Bush
+-- License     :  MIT
 --
--- Maintainer  :
--- Stability   :
--- Portability :
+-- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
+-- Stability   :  Stable
+-- Portability :  Portable
 --
--- |
+-- | Miscellaneous functions for manipulating lists.
 --
 -----------------------------------------------------------------------------
+
 
 module Data.List.Util (
   separate

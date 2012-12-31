@@ -6,22 +6,22 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  Portable
 --
--- |
---
--- https://developers.google.com/accounts/docs/OAuth2InstalledApp
+-- | Functions for OAuth 2.0 authentication for Google APIs.
 --
 -----------------------------------------------------------------------------
 
 
 module Network.Google.OAuth2 (
+-- * Types
   OAuth2Client(..)
 , OAuth2Scope
 , OAuth2Tokens(..)
-, exchangeCode
-, formUrl
+-- * Functions
 , googleScopes
+, formUrl
+, exchangeCode
 , refreshTokens
 , validateTokens
 ) where
@@ -36,31 +36,37 @@ import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, ht
 import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
 
 
+-- An OAuth 2.0 client for an installed application, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp>.
 data OAuth2Client = OAuth2Client
   {
-    clientId :: String
-  , clientSecret :: String
+    clientId :: String      -- ^ The client ID.
+  , clientSecret :: String  -- ^ The client secret.
   }
     deriving (Read, Show)
 
 
+-- | An OAuth 2.0 code.
 type OAuth2Code = String
 
+
+-- | OAuth 2.0 tokens.
 data OAuth2Tokens = OAuth2Tokens
   {
-    accessToken :: String
-  , refreshToken :: String
-  , expiresIn :: Rational
-  , tokenType :: String
+    accessToken :: String   -- ^ The access token.
+  , refreshToken :: String  -- ^ The refresh token.
+  , expiresIn :: Rational   -- ^ The number of seconds until the access token expires.
+  , tokenType :: String     -- ^ The token type.
   }
     deriving (Read, Show)
 
 
+-- | An OAuth 2.0 scope.
 type OAuth2Scope = String
 
 
--- https://developers.google.com/oauthplayground/
-googleScopes :: [(String, OAuth2Scope)]
+-- | The OAuth 2.0 scopes for Google APIs, see <https://developers.google.com/oauthplayground/>.
+googleScopes ::
+  [(String, OAuth2Scope)]  -- ^ List of names and the corresponding scopes.
 googleScopes =
   [
     ("Adsense Management", "https://www.googleapis.com/auth/adsense")
@@ -96,11 +102,16 @@ googleScopes =
   ]
 
 
+-- | The redirect URI for an installed application, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#choosingredirecturi>.
 redirectUri :: String
 redirectUri = "urn:ietf:wg:oauth:2.0:oob"
 
 
-formUrl :: OAuth2Client -> [OAuth2Scope] -> String
+-- | Form a URL for authorizing an installed application, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#formingtheurl>.
+formUrl ::
+     OAuth2Client   -- ^ The OAuth 2.0 client.
+  -> [OAuth2Scope]  -- ^ The OAuth 2.0 scopes to be authorized.
+  -> String         -- ^ The URL for authorization.
 formUrl client scopes =
   "https://accounts.google.com/o/oauth2/auth"
     ++ "?response_type=code"
@@ -109,7 +120,11 @@ formUrl client scopes =
     ++ "&scope=" ++ (intercalate "+" $ map urlEncode scopes)
 
 
-exchangeCode :: OAuth2Client -> OAuth2Code -> IO OAuth2Tokens
+-- | Exchange an authorization code for tokens, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#handlingtheresponse>.
+exchangeCode ::
+     OAuth2Client     -- ^ The OAuth 2.0 client.
+  -> OAuth2Code       -- ^ The authorization code.
+  -> IO OAuth2Tokens  -- ^ The action for obtaining the tokens.
 exchangeCode client code =
   do
     result <- doOAuth2 client "authorization_code" ("&redirect_uri=" ++ redirectUri ++ "&code=" ++ code)
@@ -118,7 +133,10 @@ exchangeCode client code =
     return result'
 
 
-decodeTokens :: JSObject JSValue -> Result OAuth2Tokens
+-- | Parse OAuth 2.0 tokens.
+decodeTokens ::
+     JSObject JSValue     -- ^ The JSON value.
+  -> Result OAuth2Tokens  -- ^ The OAuth 2.0 tokens.
 decodeTokens value =
   do
     let
@@ -138,7 +156,11 @@ decodeTokens value =
       }
 
 
-refreshTokens :: OAuth2Client -> OAuth2Tokens -> IO OAuth2Tokens
+-- | Refresh OAuth 2.0 tokens, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#refresh>.
+refreshTokens ::
+     OAuth2Client     -- ^ The client.
+  -> OAuth2Tokens     -- ^ The tokens.
+  -> IO OAuth2Tokens  -- ^ The action to refresh the tokens.
 refreshTokens client tokens =
   do
     result <- doOAuth2 client "refresh_token" ("&refresh_token=" ++ refreshToken tokens)
@@ -147,7 +169,11 @@ refreshTokens client tokens =
     return result'
 
 
-decodeTokens' :: OAuth2Tokens -> JSObject JSValue -> Result OAuth2Tokens
+-- | Refresh OAuth 2.0 tokens from JSON refresh data.
+decodeTokens' ::
+     OAuth2Tokens         -- ^ The original tokens.
+  -> JSObject JSValue     -- ^ The JSON value.
+  -> Result OAuth2Tokens  -- ^ The refreshed tokens.
 decodeTokens' tokens value =
   do
     let
@@ -165,6 +191,7 @@ decodeTokens' tokens value =
       }
 
 
+-- | Peform OAuth 2.0 authentication, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#handlingtheresponse>.
 doOAuth2 :: OAuth2Client -> String -> String -> IO (JSObject JSValue)
 doOAuth2 client grantType extraBody =
   do
@@ -193,7 +220,10 @@ doOAuth2 client grantType extraBody =
     return $ result
 
 
-validateTokens :: OAuth2Tokens -> IO Rational
+-- | Validate OAuth 2.0 tokens, see <https://developers.google.com/accounts/docs/OAuth2Login#validatingtoken>.
+validateTokens ::
+     OAuth2Tokens  -- ^ The tokens.
+  -> IO Rational   -- ^ The number of seconds until the access token expires.
 validateTokens tokens =
   do
     let

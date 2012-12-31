@@ -1,14 +1,14 @@
 -----------------------------------------------------------------------------
 --
 -- Module      :  Data.ByteString.Util
--- Copyright   :
--- License     :  AllRightsReserved
+-- Copyright   :  (c) 2012-13 Brian W Bush
+-- License     :  MIT
 --
--- Maintainer  :
--- Stability   :
--- Portability :
+-- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
+-- Stability   :  Stable
+-- Portability :  Portable
 --
--- |
+-- | Miscellaneous functions for manipulating bytestrings.
 --
 -----------------------------------------------------------------------------
 
@@ -29,20 +29,28 @@ import qualified Data.Text.Encoding as T (decodeUtf8, encodeUtf8)
 
 
 -- | Convert a lazy ByteString to a String, in UTF-8.
-lbsToS :: LBS8.ByteString -> String
+lbsToS ::
+     LBS8.ByteString -- ^ The bytestring to be converted.
+  -> String          -- ^ The string corresponding to the UTF-8 decoding of the bytestring.
 lbsToS = T.unpack . T.decodeUtf8 . BS8.concat . LBS8.toChunks
 
 
 -- | Convert a lazy ByteString to a String, without UTF-8.
-lbsToS' :: LBS8.ByteString -> String
+lbsToS' ::
+     LBS8.ByteString -- ^ The bytestring to be converted.
+  -> String          -- ^ The string corresponding to the bytestring, but with no UTF-8 decoding.
 lbsToS' = BS8.unpack . BS8.concat . LBS8.toChunks
 
 
 -- | Convert a String to a ByteString, in UTF-8.
-sToBs :: String -> BS.ByteString
+sToBs ::
+     String         -- ^ The string to be converted.
+  -> BS.ByteString  -- ^ The bytestring corresponding to the UTF-8 encoding of the string.
 sToBs = T.encodeUtf8 . T.pack
 
 
 -- | Convert a String to a lazy ByteString, without UTF-8.
-sToLbs' :: String -> LBS8.ByteString
+sToLbs' ::
+     String           -- ^ The string to be converted.
+  -> LBS8.ByteString  -- ^ The bytestring corresponding to the string, but with no UTF-8 encoding.
 sToLbs' = LBS8.pack

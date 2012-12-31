@@ -6,9 +6,9 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  POSIX
 --
--- |
+-- | Synchronization of filesystem directories with Google Storage buckets.
 --
 -----------------------------------------------------------------------------
 
@@ -17,13 +17,15 @@
 
 
 module Network.Google.Storage.Sync (
-  sync
+  RegexExclusion
+, sync
 ) where
 
 
 import Control.Exception (SomeException, finally, handle)
 import Control.Monad (filterM, liftM)
-import Crypto.MD5 (md5Base64)
+import Crypto.GnuPG (Recipient)
+import Crypto.MD5 (MD5Info, md5Base64)
 import qualified Data.ByteString.Lazy as LBS(ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
@@ -31,9 +33,9 @@ import Data.Maybe (catMaybes, fromJust)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (parseTime)
-import Network.Google (AccessToken, toAccessToken)
+import Network.Google (AccessToken, ProjectId, toAccessToken)
 import Network.Google.OAuth2 (OAuth2Client(..), OAuth2Tokens(..), refreshTokens, validateTokens)
-import Network.Google.Storage (StorageAcl, deleteObjectUsingManager, getBucketUsingManager, putObjectUsingManager)
+import Network.Google.Storage (BucketName, KeyName, MIMEType, StorageAcl, deleteObjectUsingManager, getBucketUsingManager, putObjectUsingManager)
 import Network.Google.Storage.Encrypted (putEncryptedObject, putEncryptedObjectUsingManager)
 import Network.HTTP.Conduit (closeManager, def, newManager)
 import System.Directory (doesDirectoryExist, getDirectoryContents)
@@ -45,13 +47,23 @@ import Text.Regex.Posix ((=~))
 import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildName, ppTopElement, strContent)
 
 
-type Lister = AccessToken -> IO Element
-type Putter = String -> Maybe String -> LBS.ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
-type Deleter = String -> AccessToken -> IO [(String, String)]
-type Excluder = ObjectMetadata -> Bool
+-- | A regular expression used for excluding files from synchronization.
+type RegexExclusion = String
 
 
-sync :: String -> StorageAcl -> String -> OAuth2Client -> OAuth2Tokens -> FilePath -> [String] -> [String] -> Bool -> Bool -> IO ()
+-- | Synchronize a filesystem directory with a Google Storage bucket.
+sync ::
+     ProjectId         -- ^ The Google project ID.
+  -> StorageAcl        -- ^ The pre-defined access control.
+  -> BucketName        -- ^ The bucket name.
+  -> OAuth2Client      -- ^ The OAuth 2.0 client information.
+  -> OAuth2Tokens      -- ^ The OAuth 2.0 tokens.
+  -> FilePath          -- ^ The directory to be synchronized.
+  -> [Recipient]       -- ^ The recipients for GnuPG encryption of the uploaded files.
+  -> [RegexExclusion]  -- ^ The regular expressions used for excluding files from synchronization.
+  -> Bool              -- ^ Whether to write a file \".md5sum\" of MD5 sums of synchronized files into the root directory.
+  -> Bool              -- ^ Whether to delete keys from the bucket that do not correspond to files on the filesystem.
+  -> IO ()             -- ^ The IO action for the synchronization.
 sync projectId acl bucket client tokens directory recipients exclusions md5sums purge =
   do
     manager <- newManager def
@@ -73,10 +85,44 @@ sync projectId acl bucket client tokens directory recipients exclusions md5sums 
       )
 
 
+-- | A function for listing a bucket.
+type Lister =
+     AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO Element   -- ^ The action returning the XML with the metadata for the objects.
+
+
+-- | A function for putting an object into a bucket.
+type Putter =
+     KeyName                -- ^ The object's key.
+  -> Maybe MIMEType         -- ^ The object's MIME type.
+  -> LBS.ByteString         -- ^ The object's data.
+  -> Maybe MD5Info          -- ^ The MD5 checksum.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to put the object and return the response header.
+
+
+-- | A function for deleting an object from a bucket.
+type Deleter =
+     KeyName                -- ^ The object's key.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to put the object and return the response header.
+
+
+-- | A function for determining whether to exclude an object from synchronization.
+type Excluder =
+     ObjectMetadata  -- ^ The object's metadata.
+  -> Bool            -- ^ Whether to exclude the object from synchronization.
+
+
+-- | An expiration time and the tokens which expire then.
 type TokenClock = (UTCTime, OAuth2Tokens)
 
 
-checkExpiration :: OAuth2Client -> TokenClock -> IO TokenClock
+-- | Check whether a token has expired and refresh it if necessary.
+checkExpiration ::
+     OAuth2Client   -- ^ The OAuth 2.0 client information.
+  -> TokenClock     -- ^ The token and its expiration.
+  -> IO TokenClock  -- ^ The action to update the token and its expiration.
 checkExpiration client (expirationTime, tokens) =
   do
     now <- getCurrentTime
@@ -93,7 +139,10 @@ checkExpiration client (expirationTime, tokens) =
          return (expirationTime, tokens)
 
 
-makeExcluder :: [String] -> Excluder
+-- | Make a function to exclude objects based on regular expressions for filenames.
+makeExcluder ::
+     [RegexExclusion] -- ^ The regular expressions.
+  -> Excluder         -- ^ The function for excluding objects.
 makeExcluder exclusions =
   \(ObjectMetadata candidate _ _ _) ->
     let
@@ -103,7 +152,19 @@ makeExcluder exclusions =
       not $ or $ map match exclusions
 
 
-sync' :: Lister -> Putter -> Deleter -> OAuth2Client -> OAuth2Tokens -> FilePath -> Bool -> Excluder -> Bool -> Bool -> IO ()
+-- | Synchronize a filesystem directory with a Google Storage bucket.
+sync' ::
+     Lister        -- ^ The bucket listing function.
+  -> Putter        -- ^ The object putting function.
+  -> Deleter       -- ^ The object deletion function.
+  -> OAuth2Client  -- ^ The OAuth 2.0 client information.
+  -> OAuth2Tokens  -- ^ The OAuth 2.0 tokens.
+  -> FilePath      -- ^ The directory to be synchronized.
+  -> Bool          -- ^ Whether to use ETags in comparing object metadata.
+  -> Excluder      -- ^ The function for excluding objects.
+  -> Bool          -- ^ Whether to write a file \".md5sum\" of MD5 sums of synchronized files into the root directory.
+  -> Bool          -- ^ Whether to delete keys from the bucket that do not correspond to files on the filesystem.
+  -> IO ()         -- ^ The IO action for the synchronization.
 sync' lister putter deleter client tokens directory byETag excluder md5sums purge =
   do
     putStr "LOCAL "
@@ -152,7 +213,14 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
       else return ()
 
 
-walkPutter :: OAuth2Client -> TokenClock -> FilePath -> Putter -> [ObjectMetadata] -> IO TokenClock
+-- | Put a list of objects.
+walkPutter ::
+     OAuth2Client      -- ^ The OAuth 2.0 client information.
+  -> TokenClock        -- ^ The token and its expiration.
+  -> FilePath          -- ^ The directory to be synchronized.
+  -> Putter            -- ^ The object putting function.
+  -> [ObjectMetadata]  -- ^ Description of the objects to be put.
+  -> IO TokenClock     -- ^ The action to update the token and its expiration.
 walkPutter _ tokenClock _ _ [] = return tokenClock
 walkPutter client (expirationTime, tokens) directory putter (x : xs) =
   do
@@ -171,7 +239,13 @@ walkPutter client (expirationTime, tokens) directory putter (x : xs) =
     walkPutter client (expirationTime', tokens') directory putter xs
 
 
-walkDeleter :: OAuth2Client -> TokenClock -> Deleter -> [ObjectMetadata] -> IO TokenClock
+-- | Delete a list of objects.
+walkDeleter ::
+     OAuth2Client      -- ^ The OAuth 2.0 client information.
+  -> TokenClock        -- ^ The token and its expiration.
+  -> Deleter           -- ^ The object deletion function.
+  -> [ObjectMetadata]  -- ^ Description of the objects to be deleted.
+  -> IO TokenClock     -- ^ The action to update the token and its expiration.
 walkDeleter _ tokenClock _ [] = return tokenClock
 walkDeleter client (expirationTime, tokens) deleter (x : xs) =
   do
@@ -189,21 +263,26 @@ walkDeleter client (expirationTime, tokens) deleter (x : xs) =
     walkDeleter client (expirationTime, tokens') deleter xs
 
 
+-- |
 handler :: SomeException -> IO ()
 handler exception = putStrLn $ "  FAIL " ++ show exception
 
 
+-- | Object metadata.
 data ObjectMetadata = ObjectMetadata
   {
-    key :: String
-  , eTag :: (String, String)
-  , size :: Int
-  , lastModified :: UTCTime
+    key :: String            -- ^ The object's key.
+  , eTag :: MD5Info          -- ^ The object's MD5 sum.
+  , size :: Int              -- ^ The object's size, in bytes.
+  , lastModified :: UTCTime  -- ^ The object's modification time.
   }
     deriving (Show)
 
 
-parseMetadata :: Element -> [ObjectMetadata]
+-- | Parse XML metadata into object descriptions.
+parseMetadata ::
+     Element           -- ^ The XML metadata.
+  -> [ObjectMetadata]  -- ^ The object descriptions.
 parseMetadata root =
   let
     makeMetadata :: Element -> Maybe ObjectMetadata
@@ -221,10 +300,18 @@ parseMetadata root =
     catMaybes $ map makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
 
 
-walkDirectories :: FilePath -> IO [ObjectMetadata]
+-- | Gather file metadata from the file system.
+walkDirectories ::
+     FilePath             -- ^ The directory to be synchronized.
+  -> IO [ObjectMetadata]  -- ^ Action returning file descriptions.
 walkDirectories directory = walkDirectories' (directory ++ [pathSeparator]) [""]
 
-walkDirectories' :: FilePath -> [FilePath] -> IO [ObjectMetadata]
+
+-- | Gather file metadata from the file system.
+walkDirectories' ::
+     FilePath             -- ^ The directory to be synchronized.
+  -> [FilePath]           -- ^ The subdirectories still remaining to be described.
+  -> IO [ObjectMetadata]  -- ^ Action returning file descriptions.
 walkDirectories' _ [] = return []
 walkDirectories' directory (y : ys) =
   handle

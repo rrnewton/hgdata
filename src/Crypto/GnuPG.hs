@@ -8,13 +8,16 @@
 -- Stability   :  Stable
 -- Portability :  Linux
 --
--- |
+-- | Interface to GnuPG.  The GnuPG program \"gpg\" must be on the PATH.
 --
 -----------------------------------------------------------------------------
 
 
 module Crypto.GnuPG (
-  decrypt
+-- * Types
+  Recipient
+-- * Functions
+, decrypt
 , decryptLbs
 , encrypt
 , encryptLbs
@@ -27,10 +30,14 @@ import System.Process (runInteractiveProcess)
 import System.IO (hClose, hFlush, hGetContents, hPutStr)
 
 
-import Data.ByteString.Util (lbsToS', sToLbs')
+-- | A recipient for encryption.
+type Recipient = String
 
 
-decrypt :: String -> IO String
+-- | Decrypt text.
+decrypt ::
+     String     -- ^ The encrypted text.
+  -> IO String  -- ^ The plain text.
 decrypt input =
   do
     (hIn, hOut, _, _) <- runInteractiveProcess
@@ -54,7 +61,11 @@ decrypt input =
     return output
 
 
-encrypt :: [String] -> String -> IO String
+-- | Encrypt text.
+encrypt ::
+     [Recipient]  -- ^ The recipients for encryption.
+  -> String       -- ^ The plain text.
+  -> IO String    -- ^ The encrypted text.
 encrypt recipients input =
   do
     (hIn, hOut, _, _) <- runInteractiveProcess
@@ -82,7 +93,10 @@ encrypt recipients input =
     return output
 
 
-decryptLbs :: LBS.ByteString -> IO LBS.ByteString
+-- | Decrypt binary data.
+decryptLbs ::
+     LBS.ByteString     -- ^ The encrypted data.
+  -> IO LBS.ByteString  -- ^ The plain data.
 decryptLbs input =
   do
     (hIn, hOut, _, _) <- runInteractiveProcess
@@ -106,7 +120,11 @@ decryptLbs input =
     return output
 
 
-encryptLbs :: [String] -> LBS.ByteString -> IO LBS.ByteString
+-- | Encrypt binary data.
+encryptLbs ::
+     [Recipient]        -- ^ The recipients for encryption.
+  -> LBS.ByteString     -- ^ The plain data.
+  -> IO LBS.ByteString  -- ^ The encrypted data.
 encryptLbs recipients input =
   do
     (hIn, hOut, _, _) <- runInteractiveProcess

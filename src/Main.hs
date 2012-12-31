@@ -6,9 +6,9 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  POSIX
 --
--- |
+-- |  Command-line access to Google APIs.
 --
 -----------------------------------------------------------------------------
 
@@ -35,6 +35,7 @@ import System.Console.CmdArgs
 import Text.XML.Light (ppTopElement)
 
 
+-- | Definition of command-line parameters.
 data HGData =
     OAuth2Url {
       client :: String
@@ -109,10 +110,11 @@ data HGData =
       deriving (Show, Data, Typeable)
 
 
+-- | Definition of program.
 hgData :: HGData
 hgData =
   modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.1.0, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+    &= summary "hgData v0.2.0, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help
       (
@@ -120,6 +122,7 @@ hgData =
       )
 
 
+-- | Generate an OAuth 2.0 URL.
 oAuth2Url :: HGData
 oAuth2Url = OAuth2Url
   {
@@ -136,6 +139,7 @@ oAuth2Url = OAuth2Url
       ]
 
 
+-- | Exchange an OAuth2 code for tokens.
 oAuth2Exchange :: HGData
 oAuth2Exchange = OAuth2Exchange
   {
@@ -155,6 +159,7 @@ oAuth2Exchange = OAuth2Exchange
       ]
 
 
+-- | Exchange an OAuth 2.0 code for tokens.
 oAuth2Refresh :: HGData
 oAuth2Refresh = OAuth2Refresh
   {
@@ -174,6 +179,7 @@ oAuth2Refresh = OAuth2Refresh
       ]
 
 
+-- | Download Google Contacts.
 contacts :: HGData
 contacts = Contacts
   {
@@ -195,6 +201,7 @@ contacts = Contacts
       ]
 
 
+-- | List objects in a Google Storage bucket.
 slist :: HGData
 slist = SList
   {
@@ -212,6 +219,7 @@ slist = SList
       ]
 
 
+-- | Get an object from a Google Storage bucket.
 sget :: HGData
 sget = SGet
   {
@@ -233,6 +241,7 @@ sget = SGet
       ]
 
 
+-- | Put an object into a Google Storage bucket.
 sput :: HGData
 sput = SPut
   {
@@ -257,6 +266,7 @@ sput = SPut
       ]
 
 
+-- | Delete an object from a Google Storage bucket.
 sdelete :: HGData
 sdelete = SDelete
   {
@@ -274,6 +284,7 @@ sdelete = SDelete
       ]
 
 
+-- | Get object metadata from a Google Storage bucket.
 shead :: HGData
 shead = SHead
   {
@@ -292,6 +303,7 @@ shead = SHead
       ]
 
 
+-- | Synchronize a directory with a Google Storage bucket.
 ssync :: HGData
 ssync = SSync
   {
@@ -324,6 +336,7 @@ ssync = SSync
       ]
 
 
+-- | Dispatch a command-line request.
 dispatch :: HGData -> IO ()
 
 dispatch (OAuth2Url clientId) =
@@ -401,6 +414,7 @@ dispatch (SSync clientId clientSecret refreshToken projectId bucket directory ac
       purge
 
 
+-- | Main entry point.
 main :: IO ()
 main =
   do

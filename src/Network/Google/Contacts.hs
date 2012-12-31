@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  Portable.
 --
 -- |
 --
@@ -14,13 +14,14 @@
 
 
 module Network.Google.Contacts (
-  extractPasswords
-, listContacts
+-- * Functions
+  listContacts
+, extractPasswords
 ) where
 
 
 import Control.Monad ((<=<), (>>), liftM)
-import Crypto.GnuPG (decrypt, encrypt)
+import Crypto.GnuPG (Recipient, decrypt, encrypt)
 import Data.ByteString.Util (lbsToS)
 import Data.List (stripPrefix)
 import Data.Maybe (catMaybes, fromJust)
@@ -29,15 +30,20 @@ import Network.HTTP.Conduit (Request(..), def, httpLbs, responseBody, withManage
 import Text.XML.Light (Element, elChildren, filterChildName, parseXMLDoc, qName, strContent)
 
 
+-- | The host for API access.
 contactsHost :: String
 contactsHost = "www.google.com"
 
 
+-- | The API version used here.
 contactsApi :: (String, String)
 contactsApi = ("Gdata-version", "3.0")
 
 
-listContacts :: AccessToken -> IO Element
+-- | List the contacts.
+listContacts ::
+     AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO Element   -- ^ The action returning the contacts in XML format.
 listContacts accessToken =
   do
     let
@@ -45,7 +51,10 @@ listContacts accessToken =
     doRequest request
 
 
-listContactsRequest :: AccessToken -> Request m
+-- | Make an HTTP request to list the contacts.
+listContactsRequest ::
+     AccessToken  -- ^ The OAuth 2.0 access token.
+  -> Request m    -- ^ The request.
 listContactsRequest accessToken =
   (makeRequest accessToken contactsApi "GET" (contactsHost, "/m8/feeds/contacts/default/full/"))
   {
@@ -53,7 +62,11 @@ listContactsRequest accessToken =
   }
 
 
-extractPasswords :: [String] -> String -> IO String
+-- | Extract the passwords from a contact list.  Passwords are re-encrypted if recipients for the re-encrypted list are specified.
+extractPasswords ::
+     [Recipient]  -- ^ The recipients to re-encrypt the passwords to.
+  -> String       -- ^ The contact list.
+  -> IO String    -- ^ The action return the decrypted and then possibly re-encrypted passwords.
 extractPasswords recipients text =
   do
     let
@@ -66,7 +79,10 @@ extractPasswords recipients text =
     (if null recipients then return . id else encrypt recipients) $ unlines passwords'
 
 
-extractPasswords' :: String -> [(String, String, String)]
+-- | Extract the passwords from a contact list.
+extractPasswords' ::
+     String                      -- ^ The contact list.
+  -> [(String, String, String)]  -- ^ The contacts in (title, organization, GnuPG text) format.
 extractPasswords' text =
   let
     findChildName :: String -> Element -> Maybe Element

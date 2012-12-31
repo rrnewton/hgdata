@@ -6,51 +6,65 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  Portable
 --
--- |
---
--- https://developers.google.com/storage/docs/reference-methods
+-- |  Functions for the Google Storage API, see <https://developers.google.com/storage/docs/reference-methods>.
 
 -----------------------------------------------------------------------------
 
 
 module Network.Google.Storage (
-  StorageAcl(..)
-, deleteBucket
-, deleteBucketUsingManager
-, deleteObject
-, deleteObjectUsingManager
-, getBucket
-, getBucketUsingManager
-, getObject
-, getObjectUsingManager
+-- * Types
+  BucketName
+, KeyName
+, StorageAcl(..)
+, MIMEType
+-- * Service Requests
 , getService
 , getServiceUsingManager
-, headObject
-, headObjectUsingManager
+-- * Bucket Requests
 , putBucket
 , putBucketUsingManager
+, getBucket
+, getBucketUsingManager
+, deleteBucket
+, deleteBucketUsingManager
+-- * Object Requests
+, getObject
+, getObjectUsingManager
 , putObject
 , putObjectUsingManager
+, headObject
+, headObjectUsingManager
+, deleteObject
+, deleteObjectUsingManager
 ) where
 
 
 import Control.Monad (liftM)
 import Control.Monad.Trans.Resource (ResourceT)
-import Crypto.MD5 (md5Base64)
+import Crypto.MD5 (MD5Info, md5Base64)
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Util (sToBs)
 import Data.List (intersperse, stripPrefix)
 import Data.List.Util (separate)
 import Data.Maybe (fromJust, isNothing, maybe)
-import Network.Google (AccessToken, appendBody, appendHeaders, appendQuery, doManagedRequest, doRequest, makeProjectRequest)
+import Network.Google (AccessToken, ProjectId, appendBody, appendHeaders, appendQuery, doManagedRequest, doRequest, makeProjectRequest)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Manager, Request, queryString)
 import Text.XML.Light (Element(elContent), QName(qName), filterChildName, ppTopElement, strContent)
 
 
+-- | A bucket name.
+type BucketName = String
+
+
+-- | A key name for an object.
+type KeyName = String
+
+
+-- | Access control.
 data StorageAcl =
     Private
   | PublicRead
@@ -79,31 +93,57 @@ instance Read StorageAcl where
         else [(last matches, "")]
 
 
+-- | MIME type.
+type MIMEType = String
+
+
+-- | The host name for API access.
 storageHost :: String
 storageHost = "storage.googleapis.com"
 
 
+-- | The API version used here.
 storageApi :: (String, String)
 storageApi = ("x-goog-api-version", "2")
 
 
-makeHost :: String -> String
+-- | Make a host name.
+makeHost ::
+     BucketName  -- ^ The bucket.
+  -> String      -- ^ The host for the bucket.
 makeHost bucket = bucket ++ "." ++ storageHost
 
 
-makePath :: String -> String
+-- | URL-encode a path.
+makePath ::
+     String  -- ^ The unencoded path.
+  -> String  -- ^ The URL-encoded path.
 makePath = ('/' :) . concat . intersperse "/" . map (urlEncode . unpack . sToBs) . separate '/'
 
 
-getService :: String -> AccessToken -> IO Element
+-- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.
+getService ::
+     ProjectId    -- ^ The project ID.
+  -> AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO Element   -- ^ The action returning the XML with the metadata for the buckets.
 getService = getServiceImpl doRequest
 
 
-getServiceUsingManager :: Manager -> String -> AccessToken -> IO Element
+-- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.
+getServiceUsingManager ::
+     Manager      -- ^ The conduit HTTP manager to use.
+  -> ProjectId    -- ^ The project ID.
+  -> AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO Element   -- ^ The action returning the XML with the metadata for the buckets.
 getServiceUsingManager = getServiceImpl . doManagedRequest
 
 
-getServiceImpl :: (Request (ResourceT IO) -> IO Element) -> String -> AccessToken -> IO Element
+-- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.
+getServiceImpl ::
+     (Request (ResourceT IO) -> IO Element)  -- ^ The function for performing the request.
+  -> ProjectId                               -- ^ The project ID.
+  -> AccessToken                             -- ^ The OAuth 2.0 access token.
+  -> IO Element                              -- ^ The action returning the XML with the metadata for the buckets.
 getServiceImpl doer projectId accessToken =
   do
     let
@@ -111,15 +151,35 @@ getServiceImpl doer projectId accessToken =
     doer request
 
 
-putBucket :: String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
+-- | Creates a bucket in a specified project.  This performs the \"PUT Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#putbucket>.
+putBucket ::
+     ProjectId              -- ^ The project ID.
+  -> StorageAcl             -- ^ The pre-defined access control.
+  -> BucketName             -- ^ The bucket.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to put the object and return the response header.
 putBucket = putBucketImpl doRequest
 
 
-putBucketUsingManager :: Manager -> String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
+-- | Creates a bucket in a specified project.  This performs the \"PUT Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#putbucket>.
+putBucketUsingManager ::
+     Manager                -- ^ The conduit HTTP manager to use.
+  -> ProjectId              -- ^ The project ID.
+  -> StorageAcl             -- ^ The pre-defined access control.
+  -> BucketName             -- ^ The bucket.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to put the object and return the response header.
 putBucketUsingManager = putBucketImpl . doManagedRequest
 
 
-putBucketImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> AccessToken -> IO [(String, String)]
+-- | Creates a bucket in a specified project.  This performs the \"PUT Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#putbucket>.
+putBucketImpl ::
+     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+  -> ProjectId                                          -- ^ The project ID.
+  -> StorageAcl                                         -- ^ The pre-defined access control.
+  -> BucketName                                         -- ^ The bucket.
+  -> AccessToken                                        -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]                              -- ^ The action to create the bucket and return the response header.
 putBucketImpl doer projectId acl bucket accessToken =
   do
     let
@@ -131,15 +191,32 @@ putBucketImpl doer projectId acl bucket accessToken =
     doer request
 
 
-getBucket :: String -> String -> AccessToken -> IO Element
+-- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
+getBucket ::
+     ProjectId    -- ^ The project ID.
+  -> BucketName   -- ^ The bucket.
+  -> AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO Element   -- ^ The action returning the XML with the metadata for the objects.
 getBucket = getBucketImpl doRequest
 
 
-getBucketUsingManager :: Manager -> String -> String -> AccessToken -> IO Element
+-- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
+getBucketUsingManager ::
+     Manager      -- ^ The conduit HTTP manager to use.
+  -> ProjectId    -- ^ The project ID.
+  -> BucketName   -- ^ The bucket.
+  -> AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO Element   -- ^ The action returning the XML with the metadata for the objects.
 getBucketUsingManager = getBucketImpl . doManagedRequest
 
 
-getBucketImpl :: (Request (ResourceT IO) -> IO Element) -> String -> String -> AccessToken -> IO Element
+-- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
+getBucketImpl ::
+     (Request (ResourceT IO) -> IO Element)  -- ^ The function for performing the request.
+  -> ProjectId                               -- ^ The project ID.
+  -> BucketName                              -- ^ The bucket.
+  -> AccessToken                             -- ^ The OAuth 2.0 access token.
+  -> IO Element                              -- ^ The action returning the XML with the metadata for the objects.
 getBucketImpl doer projectId bucket accessToken =
   do
     results <- getBucketImpl' doer Nothing projectId bucket accessToken
@@ -148,7 +225,14 @@ getBucketImpl doer projectId bucket accessToken =
     return $ root {elContent = concat $ map elContent results}
 
 
-getBucketImpl' :: (Request (ResourceT IO) -> IO Element) -> Maybe String -> String -> String -> AccessToken -> IO [Element]
+-- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
+getBucketImpl' ::
+     (Request (ResourceT IO) -> IO Element)  -- ^ The function for performing the request.
+  -> Maybe KeyName                           -- ^ The key to start listing at.
+  -> ProjectId                               -- ^ The project ID.
+  -> BucketName                              -- ^ The bucket.
+  -> AccessToken                             -- ^ The OAuth 2.0 access token.
+  -> IO [Element]                            -- ^ The action returning the XML with the metadata for the objects.
 getBucketImpl' doer marker projectId bucket accessToken =
   do
     let
@@ -168,15 +252,32 @@ getBucketImpl' doer marker projectId bucket accessToken =
       else liftM (result :) $ getBucketImpl' doer marker' projectId bucket accessToken
 
 
-deleteBucket :: String -> String -> AccessToken -> IO [(String, String)]
+-- | Deletes an empty bucket.  This performs the \"DELETE Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#deletebucket>.
+deleteBucket ::
+     ProjectId              -- ^ The project ID.
+  -> BucketName             -- ^ The bucket.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to delete the bucket and return the response header.
 deleteBucket = deleteBucketImpl doRequest
 
 
-deleteBucketUsingManager :: Manager -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Deletes an empty bucket.  This performs the \"DELETE Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#deletebucket>.
+deleteBucketUsingManager ::
+     Manager                -- ^ The conduit HTTP manager to use.
+  -> ProjectId              -- ^ The project ID.
+  -> BucketName             -- ^ The bucket.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to delete the bucket and return the response header.
 deleteBucketUsingManager = deleteBucketImpl . doManagedRequest
 
 
-deleteBucketImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Deletes an empty bucket.  This performs the \"DELETE Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#deletebucket>.
+deleteBucketImpl ::
+     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+  -> ProjectId                                          -- ^ The project ID.
+  -> BucketName                                         -- ^ The bucket.
+  -> AccessToken                                        -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]                              -- ^ The action to delete the bucket and return the response header.
 deleteBucketImpl doer  projectId bucket accessToken =
   do
     let
@@ -184,15 +285,35 @@ deleteBucketImpl doer  projectId bucket accessToken =
     doer request
 
 
-getObject :: String -> String -> String -> AccessToken -> IO ByteString
+-- | Downloads an object.  This performs the \"GET Object\" request, see <https://developers.google.com/storage/docs/reference-methods#getobject>.
+getObject ::
+     ProjectId      -- ^ The project ID.
+  -> BucketName     -- ^ The bucket.
+  -> KeyName        -- ^ The object's key.
+  -> AccessToken    -- ^ The OAuth 2.0 access token.
+  -> IO ByteString  -- ^ The action returning the object.
 getObject = getObjectImpl doRequest
 
 
-getObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -> IO ByteString
+-- | Downloads an object.  This performs the \"GET Object\" request, see <https://developers.google.com/storage/docs/reference-methods#getobject>.
+getObjectUsingManager ::
+     Manager        -- ^ The conduit HTTP manager to use.
+  -> ProjectId      -- ^ The project ID.
+  -> BucketName     -- ^ The bucket.
+  -> KeyName        -- ^ The object's key.
+  -> AccessToken    -- ^ The OAuth 2.0 access token.
+  -> IO ByteString  -- ^ The action returning the object.
 getObjectUsingManager = getObjectImpl . doManagedRequest
 
 
-getObjectImpl :: (Request (ResourceT IO) -> IO ByteString) -> String -> String -> String -> AccessToken -> IO ByteString
+-- | Downloads an object.  This performs the \"GET Object\" request, see <https://developers.google.com/storage/docs/reference-methods#getobject>.
+getObjectImpl ::
+     (Request (ResourceT IO) -> IO ByteString)  -- ^ The function performing the action.
+  -> ProjectId                                  -- ^ The project ID.
+  -> BucketName                                 -- ^ The bucket.
+  -> KeyName                                    -- ^ The object's key.
+  -> AccessToken                                -- ^ The OAuth 2.0 access token.
+  -> IO ByteString                              -- ^ The action returning the object.
 getObjectImpl doer projectId bucket key accessToken =
   do
     let
@@ -200,18 +321,51 @@ getObjectImpl doer projectId bucket key accessToken =
     doer request
 
 
+-- TODO: Uploads objects by using HTML forms.  This performs the \"POST Object\" request, see <https://developers.google.com/storage/docs/reference-methods#postobject>.
 postObject = undefined
 
 
-putObject :: String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
+-- | Uploads an object.  This performs the \"PUT Object\" request, see <https://developers.google.com/storage/docs/reference-methods#putobject>.
+putObject ::
+     ProjectId              -- ^ The project ID.
+  -> StorageAcl             -- ^ The pre-defined access control.
+  -> BucketName             -- ^ The bucket.
+  -> KeyName                -- ^ The object's key.
+  -> Maybe MIMEType         -- ^ The object's MIME type.
+  -> ByteString             -- ^ The object's data.
+  -> Maybe MD5Info          -- ^ The MD5 checksum.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to put the object and return the response header.
 putObject = putObjectImpl doRequest
 
 
-putObjectUsingManager :: Manager -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
+-- | Uploads an object.  This performs the \"PUT Object\" request, see <https://developers.google.com/storage/docs/reference-methods#putobject>.
+putObjectUsingManager ::
+     Manager                -- ^ The conduit HTTP manager to use.
+  -> ProjectId              -- ^ The project ID.
+  -> StorageAcl             -- ^ The pre-defined access control.
+  -> BucketName             -- ^ The bucket.
+  -> KeyName                -- ^ The object's key.
+  -> Maybe MIMEType         -- ^ The object's MIME type.
+  -> ByteString             -- ^ The object's data.
+  -> Maybe MD5Info          -- ^ The MD5 checksum.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to put the object and return the response header.
 putObjectUsingManager = putObjectImpl . doManagedRequest
 
 
-putObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> StorageAcl -> String -> String -> Maybe String -> ByteString -> Maybe (String, String) -> AccessToken -> IO [(String, String)]
+-- | Uploads an object.  This performs the \"PUT Object\" request, see <https://developers.google.com/storage/docs/reference-methods#putobject>.
+putObjectImpl ::
+     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+  -> ProjectId                                          -- ^ The project ID.
+  -> StorageAcl                                         -- ^ The pre-defined access control.
+  -> BucketName                                         -- ^ The bucket.
+  -> KeyName                                            -- ^ The object's key.
+  -> Maybe MIMEType                                     -- ^ The object's MIME type.
+  -> ByteString                                         -- ^ The object's data.
+  -> Maybe MD5Info                                      -- ^ The MD5 checksum.
+  -> AccessToken                                        -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]                              -- ^ The action to put the object and return the response header.
 putObjectImpl doer projectId acl bucket key mimeType bytes md5 accessToken =
   do
     let
@@ -229,15 +383,35 @@ putObjectImpl doer projectId acl bucket key mimeType bytes md5 accessToken =
     doer request
 
 
-headObject :: String -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Lists metadata for an object.  This performs the \"HEAD Object\" request, see <https://developers.google.com/storage/docs/reference-methods#headobject>.
+headObject ::
+     ProjectId              -- ^ The project ID.
+  -> BucketName             -- ^ The bucket.
+  -> KeyName                -- ^ The object's key.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action returning the object's metadata.
 headObject = headObjectImpl doRequest
 
 
-headObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Lists metadata for an object.  This performs the \"HEAD Object\" request, see <https://developers.google.com/storage/docs/reference-methods#headobject>.
+headObjectUsingManager ::
+     Manager                -- ^ The conduit HTTP manager to use.
+  -> ProjectId              -- ^ The project ID.
+  -> BucketName             -- ^ The bucket.
+  -> KeyName                -- ^ The object's key.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action returning the object's metadata.
 headObjectUsingManager = headObjectImpl . doManagedRequest
 
 
-headObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Lists metadata for an object.  This performs the \"HEAD Object\" request, see <https://developers.google.com/storage/docs/reference-methods#headobject>.
+headObjectImpl ::
+     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+  -> ProjectId                                          -- ^ The project ID.
+  -> BucketName                                         -- ^ The bucket.
+  -> KeyName                                            -- ^ The object's key.
+  -> AccessToken                                        -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]                              -- ^ The action returning the object's metadata.
 headObjectImpl doer projectId bucket key accessToken =
   do
     let
@@ -245,15 +419,35 @@ headObjectImpl doer projectId bucket key accessToken =
     doer request
 
 
-deleteObject :: String -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Deletes an object.  This performs the \"DELETE Object\" request, see <https://developers.google.com/storage/docs/reference-methods#deleteobject>.
+deleteObject ::
+     ProjectId              -- ^ The project ID.
+  -> BucketName             -- ^ The bucket.
+  -> KeyName                -- ^ The object's key.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to delete the object and return the response header.
 deleteObject = deleteObjectImpl doRequest
 
 
-deleteObjectUsingManager :: Manager -> String -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Deletes an object.  This performs the \"DELETE Object\" request, see <https://developers.google.com/storage/docs/reference-methods#deleteobject>.
+deleteObjectUsingManager ::
+     Manager                -- ^ The conduit HTTP manager to use.
+  -> ProjectId              -- ^ The project ID.
+  -> BucketName             -- ^ The bucket.
+  -> KeyName                -- ^ The object's key.
+  -> AccessToken            -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]  -- ^ The action to delete the object and return the response header.
 deleteObjectUsingManager = deleteObjectImpl . doManagedRequest
 
 
-deleteObjectImpl :: (Request (ResourceT IO) -> IO [(String, String)]) -> String -> String -> String -> AccessToken -> IO [(String, String)]
+-- | Deletes an object.  This performs the \"DELETE Object\" request, see <https://developers.google.com/storage/docs/reference-methods#deleteobject>.
+deleteObjectImpl ::
+     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+  -> ProjectId                                          -- ^ The project ID.
+  -> BucketName                                         -- ^ The bucket.
+  -> KeyName                                            -- ^ The object's key.
+  -> AccessToken                                        -- ^ The OAuth 2.0 access token.
+  -> IO [(String, String)]                              -- ^ The action to delete the object and return the response header.
 deleteObjectImpl doer projectId bucket key accessToken =
   do
     let

@@ -6,9 +6,9 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  Portable
 --
--- |
+-- | Helper functions for accessing Google APIs.
 --
 -----------------------------------------------------------------------------
 
@@ -17,7 +17,11 @@
 
 
 module Network.Google (
+-- * Types
   AccessToken
+, toAccessToken
+, ProjectId
+-- * Functions
 , appendBody
 , appendHeaders
 , appendQuery
@@ -26,7 +30,6 @@ module Network.Google (
 , makeProjectRequest
 , makeRequest
 , makeRequestValue
-, toAccessToken
 ) where
 
 
@@ -44,14 +47,27 @@ import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..)
 import Text.XML.Light (Element, parseXMLDoc)
 
 
+-- | OAuth 2.0 access token.
 type AccessToken = BS.ByteString
 
-
-toAccessToken :: String -> AccessToken
+-- | Convert a string to an access token.
+toAccessToken ::
+     String       -- ^ The string.
+  -> AccessToken  -- ^ The OAuth 2.0 access token.
 toAccessToken = BS8.pack
 
 
-makeRequest :: AccessToken -> (String, String) -> String -> (String, String) -> Request m
+-- | Google API project ID, see <https://code.google.com/apis/console>.
+type ProjectId = String
+
+
+-- | Construct a Google API request.
+makeRequest ::
+     AccessToken       -- ^ The OAuth 2.0 access token.
+  -> (String, String)  -- ^ The Google API name and version.
+  -> String            -- ^ The HTTP method.
+  -> (String, String)  -- ^ The host and path for the request.
+  -> Request m         -- ^ The HTTP request.
 makeRequest accessToken (apiName, apiVersion) method (host, path) =
   def {
     method = BS8.pack method
@@ -66,7 +82,14 @@ makeRequest accessToken (apiName, apiVersion) method (host, path) =
   }
 
 
-makeProjectRequest :: String -> AccessToken -> (String, String) -> String -> (String, String) -> Request m
+-- | Construct a project-related Google API request.
+makeProjectRequest ::
+     ProjectId         -- ^ The project ID.
+  -> AccessToken       -- ^ The OAuth 2.0 access token.
+  -> (String, String)  -- ^ The Google API name and version.
+  -> String            -- ^ The HTTP method.
+  -> (String, String)  -- ^ The host and path for the request.
+  -> Request m         -- ^ The HTTP request.
 makeProjectRequest projectId accessToken api method hostPath =
   appendHeaders
     [
@@ -75,8 +98,12 @@ makeProjectRequest projectId accessToken api method hostPath =
     (makeRequest accessToken api method hostPath)
 
 
+-- | Class for Google API request.
 class DoRequest a where
-  doRequest :: Request (ResourceT IO) -> IO a
+  -- | Perform a request.
+  doRequest ::
+       Request (ResourceT IO)  -- ^ The request.
+    -> IO a                    -- ^ The action returning the result of performing the request.
   doRequest request =
     do
 {--
@@ -88,7 +115,10 @@ class DoRequest a where
       finally
         (doManagedRequest manager request)
         (closeManager manager)
-  doManagedRequest :: Manager -> Request (ResourceT IO) -> IO a
+  doManagedRequest ::
+       Manager                 -- ^ The conduit HTTP manager.
+    -> Request (ResourceT IO)  -- ^ The request.
+    -> IO a                    -- ^ The action returning the result of performing the request.
 
 
 instance DoRequest LBS8.ByteString where
@@ -126,19 +156,32 @@ instance DoRequest Element where
       return $ fromJust $ parseXMLDoc result
 
 
-makeRequestValue :: String -> BS8.ByteString
+-- | Prepare a string for inclusion in a request.
+makeRequestValue ::
+     String          -- ^ The string.
+  -> BS8.ByteString  -- ^ The prepared string.
 makeRequestValue = BS8.pack
 
 
-makeHeaderName :: String -> CI.CI BS8.ByteString
+-- | Prepare a name\/key for a header.
+makeHeaderName ::
+     String                -- ^ The name.
+  -> CI.CI BS8.ByteString  -- ^ The prepared name.
 makeHeaderName = CI.mk . BS8.pack
 
 
-makeHeaderValue :: String -> BS8.ByteString
+-- | Prepare a value for a header.
+makeHeaderValue ::
+     String          -- ^ The value.
+  -> BS8.ByteString  -- ^ The prepared value.
 makeHeaderValue = BS8.pack
 
 
-appendHeaders :: [(String, String)] -> Request m -> Request m
+-- | Append headers to a request.
+appendHeaders ::
+     [(String, String)]  -- ^ The (name\/key, value) pairs for the headers.
+  -> Request m           -- ^ The request.
+  -> Request m           -- ^ The request with the additional headers.
 appendHeaders headers request =
   let
     headerize :: (String, String) -> (CI.CI BS8.ByteString, BS8.ByteString)
@@ -149,14 +192,22 @@ appendHeaders headers request =
     }
 
 
-appendBody :: LBS8.ByteString -> Request m -> Request m
+-- | Append a body to a request.
+appendBody ::
+     LBS8.ByteString  -- ^ The data for the body.
+  -> Request m        -- ^ The request.
+  -> Request m        -- ^ The request with the body appended.
 appendBody bytes request =
   request {
     requestBody = RequestBodyLBS bytes
   }
 
 
-appendQuery :: [(String, String)] -> Request m -> Request m
+-- | Append a query to a request.
+appendQuery ::
+     [(String, String)]  -- ^ The query keys and values.
+  -> Request m           -- ^ The request.
+  -> Request m           -- ^ The request with the query appended.
 appendQuery query request =
   let
     makeParameter :: (String, String) -> String
@@ -168,4 +219,3 @@ appendQuery query request =
       {
         queryString = BS8.pack $ "?" ++ query'
       }
-
