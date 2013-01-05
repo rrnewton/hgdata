@@ -117,7 +117,7 @@ formUrl client scopes =
     ++ "?response_type=code"
     ++ "&client_id=" ++ clientId client
     ++ "&redirect_uri=" ++ redirectUri
-    ++ "&scope=" ++ (intercalate "+" $ map urlEncode scopes)
+    ++ "&scope=" ++ intercalate "+" (map urlEncode scopes)
 
 
 -- | Exchange an authorization code for tokens, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#handlingtheresponse>.
@@ -129,23 +129,24 @@ exchangeCode client code =
   do
     result <- doOAuth2 client "authorization_code" ("&redirect_uri=" ++ redirectUri ++ "&code=" ++ code)
     let
-      (Ok result') = decodeTokens result
+      (Ok result') = decodeTokens Nothing result
     return result'
 
 
--- | Parse OAuth 2.0 tokens.
+-- | Refresh OAuth 2.0 tokens from JSON data.
 decodeTokens ::
-     JSObject JSValue     -- ^ The JSON value.
-  -> Result OAuth2Tokens  -- ^ The OAuth 2.0 tokens.
-decodeTokens value =
+     Maybe OAuth2Tokens   -- ^ The original tokens, if any.
+  -> JSObject JSValue     -- ^ The JSON value.
+  -> Result OAuth2Tokens  -- ^ The refreshed tokens.
+decodeTokens tokens value =
   do
     let
       (!) = flip valFromObj
+      -- TODO: There should be a more straightforward way to do this.
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" value
     accessToken <- value ! "access_token"
-    refreshToken <- value ! "refresh_token"
-    -- expiresIn <- value ! "expires_in"
+    refreshToken <- maybe (value ! "refresh_token") (Ok . refreshToken) tokens
     tokenType <- value ! "token_type"
     return OAuth2Tokens
       {
@@ -165,30 +166,8 @@ refreshTokens client tokens =
   do
     result <- doOAuth2 client "refresh_token" ("&refresh_token=" ++ refreshToken tokens)
     let
-      (Ok result') = decodeTokens' tokens result
+      (Ok result') = decodeTokens (Just tokens) result
     return result'
-
-
--- | Refresh OAuth 2.0 tokens from JSON refresh data.
-decodeTokens' ::
-     OAuth2Tokens         -- ^ The original tokens.
-  -> JSObject JSValue     -- ^ The JSON value.
-  -> Result OAuth2Tokens  -- ^ The refreshed tokens.
-decodeTokens' tokens value =
-  do
-    let
-      (!) = flip valFromObj
-      expiresIn' :: Rational
-      (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" value
-    accessToken <- value ! "access_token"
-    -- expiresIn <- value ! "expires_in"
-    tokenType <- value ! "token_type"
-    return tokens
-      {
-        accessToken = accessToken
-      , expiresIn = expiresIn'
-      , tokenType = tokenType
-      }
 
 
 -- | Peform OAuth 2.0 authentication, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#handlingtheresponse>.
@@ -220,7 +199,7 @@ doOAuth2 client grantType extraBody =
     response <- withManager $ httpLbs request
     let
       (Ok result) = decode . toString $ responseBody response
-    return $ result
+    return result
 
 
 -- | Validate OAuth 2.0 tokens, see <https://developers.google.com/accounts/docs/OAuth2Login#validatingtoken>.

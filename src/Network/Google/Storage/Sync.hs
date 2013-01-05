@@ -23,13 +23,13 @@ module Network.Google.Storage.Sync (
 
 
 import Control.Exception (SomeException, finally, handle)
-import Control.Monad (filterM, liftM)
+import Control.Monad (filterM, liftM, when)
 import Crypto.GnuPG (Recipient)
 import Crypto.MD5 (MD5Info, md5Base64)
 import qualified Data.ByteString.Lazy as LBS (ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), deleteFirstsBy, intersectBy)
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (fromJust, mapMaybe)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (parseTime)
@@ -145,13 +145,12 @@ checkExpiration client (expirationTime, tokens) =
 makeExcluder ::
      [RegexExclusion] -- ^ The regular expressions.
   -> Excluder         -- ^ The function for excluding objects.
-makeExcluder exclusions =
-  \(ObjectMetadata candidate _ _ _) ->
-    let
-      match :: String -> Bool
-      match exclusion = candidate =~ exclusion
-    in
-      not $ or $ map match exclusions
+makeExcluder exclusions (ObjectMetadata candidate _ _ _) =
+  let
+    match :: String -> Bool
+    match exclusion = candidate =~ exclusion
+  in
+    not $ any match exclusions
 
 
 -- | Synchronize a filesystem directory with a Google Storage bucket.
@@ -172,7 +171,7 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
     putStr "LOCAL "
     hFlush stdout
     local <- walkDirectories directory
-    putStrLn $ show $ length local
+    print $ length local
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
     putStr "REMOTE "
@@ -180,7 +179,7 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
     remote' <- lister $ toAccessToken $ accessToken tokens'
     let
       remote = parseMetadata remote'
-    putStrLn $ show $ length remote
+    print $ length remote
     let
       tolerance = 300
       sameKey :: ObjectMetadata -> ObjectMetadata -> Bool
@@ -188,31 +187,30 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
       sameETag :: ObjectMetadata -> ObjectMetadata -> Bool
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && fst eTag == fst eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
-      earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > (addUTCTime tolerance time')
-    putStr $ "EXCLUDED "
+      earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > addUTCTime tolerance time'
+    putStr "EXCLUDED "
     hFlush stdout
     let
       local' = filter excluder local
-    putStrLn $ show (length local - length local')
-    putStr $ "PUTS "
+    print $ length local - length local'
+    putStr "PUTS "
     hFlush stdout
     let
       changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
-    putStrLn $ show (length changedObjects)
-    putStr $ "DELETES "
+    print $ length changedObjects
+    putStr "DELETES "
     hFlush stdout
     let
       deletedObjects = deleteFirstsBy sameKey remote local'
-    putStrLn $ show (length deletedObjects)
+    print $ length deletedObjects
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- if purge
       then
         walkDeleter client tokenClock' deleter deletedObjects
       else
         return tokenClock'
-    if md5sums
-      then writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
-      else return ()
+    when md5sums $
+      writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
 
 
 -- | Put a list of objects.
@@ -299,7 +297,7 @@ parseMetadata root =
         lastModified <- finder "LastModified" element
         return $ ObjectMetadata key (tail . init $ eTag, undefined) (read size) (fromJust $ parseTime defaultTimeLocale "%FT%T%QZ" lastModified)
   in
-    catMaybes $ map makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
+    mapMaybe makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
 
 
 -- | Gather file metadata from the file system.
@@ -344,8 +342,7 @@ walkDirectories' directory (y : ys) =
               let !x = fst eTag
               let !y = snd eTag
               return $ ObjectMetadata key eTag size lastTime
-        files <- liftM (map ((y ++ [pathSeparator]) ++))
-               $ liftM ( \\ [".", ".."])
+        files <- liftM (map ((y ++ [pathSeparator]) ++) . ( \\ [".", ".."]))
                $ getDirectoryContents (directory ++ y)
         y' <- filterM (doesDirectoryExist . (directory ++)) files
         x' <- mapM makeMetadata $ files \\ y'

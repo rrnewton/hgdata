@@ -23,7 +23,7 @@ module Network.Google.Contacts (
 import Control.Monad ((<=<), (>>), liftM)
 import Crypto.GnuPG (Recipient, decrypt, encrypt)
 import Data.List (stripPrefix)
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (fromJust, mapMaybe)
 import Network.Google (AccessToken, doRequest, makeRequest, makeRequestValue)
 import Network.HTTP.Conduit (Request(..), def, httpLbs, responseBody, withManager)
 import Text.XML.Light (Element, elChildren, filterChildName, parseXMLDoc, qName, strContent)
@@ -73,7 +73,7 @@ extractGnuPGNotes recipients text =
       replacePassword (t, o, p) =
         do
           p' <- decrypt p
-          return $ unlines $ ["-----", "", t, o, "", p']
+          return $ unlines ["-----", "", t, o, "", p']
     passwords' <- mapM replacePassword passwords
     (if null recipients then return . id else encrypt recipients) $ unlines passwords'
 
@@ -102,4 +102,4 @@ extractGnuPGNotes' xml =
         p <- getPGP x
         return (t, o, p)
   in
-    catMaybes $ map getEntry $ elChildren xml
+    mapMaybe getEntry $ elChildren xml

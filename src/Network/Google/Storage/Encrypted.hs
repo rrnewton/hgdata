@@ -62,7 +62,7 @@ getEncryptedObjectImpl ::
 getEncryptedObjectImpl getter projectId bucket key accessToken =
   do
     bytes <- getter projectId bucket key accessToken
-    decryptLbs $ bytes
+    decryptLbs bytes
 
 
 -- | Encrypt an object and upload it.

@@ -24,10 +24,10 @@ module Crypto.GnuPG (
 ) where
 
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (ThreadId, forkIO)
 import qualified Data.ByteString.Lazy as LBS (ByteString, hGetContents, hPutStr)
 import System.Process (runInteractiveProcess)
-import System.IO (hClose, hFlush, hGetContents, hPutStr)
+import System.IO (Handle, hClose, hFlush, hGetContents, hPutStr)
 
 
 -- | A recipient for encryption.
@@ -50,15 +50,8 @@ decrypt input =
       ]
       Nothing
       Nothing
-    forkIO
-      (
-        do
-          hPutStr hIn input
-          hFlush hIn
-          hClose hIn
-      )
-    output <- hGetContents hOut
-    return output
+    consumeInput hPutStr hIn input
+    hGetContents hOut
 
 
 -- | Encrypt text.
@@ -82,15 +75,8 @@ encrypt recipients input =
       )
       Nothing
       Nothing
-    forkIO
-      (
-        do
-          hPutStr hIn input
-          hFlush hIn
-          hClose hIn
-      )
-    output <- hGetContents hOut
-    return output
+    consumeInput hPutStr hIn input
+    hGetContents hOut
 
 
 -- | Decrypt binary data.
@@ -109,15 +95,8 @@ decryptLbs input =
       ]
       Nothing
       Nothing
-    forkIO
-      (
-        do
-          LBS.hPutStr hIn input
-          hFlush hIn
-          hClose hIn
-      )
-    output <- LBS.hGetContents hOut
-    return output
+    consumeInput LBS.hPutStr hIn input
+    LBS.hGetContents hOut
 
 
 -- | Encrypt binary data.
@@ -140,12 +119,21 @@ encryptLbs recipients input =
       )
       Nothing
       Nothing
-    forkIO
-      (
-        do
-          LBS.hPutStr hIn input
-          hFlush hIn
-          hClose hIn
-      )
-    output <- LBS.hGetContents hOut
-    return output
+    consumeInput LBS.hPutStr hIn input
+    LBS.hGetContents hOut
+
+
+-- | Consume the input stream.
+consumeInput ::
+     (Handle -> a -> IO ())  -- ^ The function to write the data.
+  -> Handle                  -- ^ The handle for the destination.
+  -> a                       -- ^ The source data.
+  -> IO ThreadId             -- ^ The action returning the thread ID of the process consuming the input and writing the data.
+consumeInput putter hIn input =
+  forkIO
+    (
+      do
+        putter hIn input
+        hFlush hIn
+        hClose hIn
+    )

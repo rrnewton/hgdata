@@ -47,7 +47,7 @@ import Crypto.MD5 (MD5Info, md5Base64)
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.UTF8 (fromString)
 import Data.ByteString.Lazy (ByteString)
-import Data.List (intersperse, stripPrefix)
+import Data.List (intercalate, stripPrefix)
 import Data.List.Util (separate)
 import Data.Maybe (fromJust, isNothing, maybe)
 import Network.Google (AccessToken, ProjectId, appendBody, appendHeaders, appendQuery, doManagedRequest, doRequest, makeProjectRequest)
@@ -119,7 +119,7 @@ makePath ::
      String  -- ^ The unencoded path.
   -> String  -- ^ The URL-encoded path.
 -- TODO: Review whether the sequence of UTF-8 encoding and URL encoding is correct.  This works correctly with tests of exotic unicode sequences, however.
-makePath = ('/' :) . concat . intersperse "/" . map (urlEncode . unpack . fromString) . separate '/'
+makePath = ('/' :) . intercalate "/" . map (urlEncode . unpack . fromString) . separate '/'
 
 
 -- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.
@@ -223,7 +223,7 @@ getBucketImpl doer projectId bucket accessToken =
     results <- getBucketImpl' doer Nothing projectId bucket accessToken
     let
       root = head results
-    return $ root {elContent = concat $ map elContent results}
+    return $ root {elContent = concatMap elContent results}
 
 
 -- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
@@ -318,7 +318,7 @@ getObjectImpl ::
 getObjectImpl doer projectId bucket key accessToken =
   do
     let
-      request = (makeProjectRequest projectId accessToken storageApi "GET" (makeHost bucket, makePath key))
+      request = makeProjectRequest projectId accessToken storageApi "GET" (makeHost bucket, makePath key)
     doer request
 
 
@@ -416,7 +416,7 @@ headObjectImpl ::
 headObjectImpl doer projectId bucket key accessToken =
   do
     let
-      request = (makeProjectRequest projectId accessToken storageApi "HEAD" (makeHost bucket, makePath key))
+      request = makeProjectRequest projectId accessToken storageApi "HEAD" (makeHost bucket, makePath key)
     doer request
 
 
@@ -452,5 +452,5 @@ deleteObjectImpl ::
 deleteObjectImpl doer projectId bucket key accessToken =
   do
     let
-      request = (makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, makePath key))
+      request = makeProjectRequest projectId accessToken storageApi "DELETE" (makeHost bucket, makePath key)
     doer request

@@ -24,7 +24,7 @@ module Main (
 import Control.Monad (liftM)
 import Data.Data(Data(..))
 import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractGnuPGNotes, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
@@ -114,12 +114,9 @@ data HGData =
 hgData :: HGData
 hgData =
   modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.3.2, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+    &= summary "hgData v0.3.3, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
-    &= help
-      (
-          "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
-      )
+    &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
 
 -- | Generate an OAuth 2.0 URL.
@@ -340,9 +337,8 @@ ssync = SSync
 dispatch :: HGData -> IO ()
 
 dispatch (OAuth2Url clientId) =
-  do
-   putStrLn $ OA2.formUrl (OA2.OAuth2Client clientId undefined) $
-      catMaybes $ map (flip lookup OA2.googleScopes) ["Google Cloud Storage", "Contacts"]
+  putStrLn $ OA2.formUrl (OA2.OAuth2Client clientId undefined) $
+    mapMaybe (`lookup` OA2.googleScopes) ["Google Cloud Storage", "Contacts"]
 
 dispatch (OAuth2Exchange clientId clientSecret exchangeCode tokenFile) =
   do

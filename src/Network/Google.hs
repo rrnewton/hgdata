@@ -36,7 +36,7 @@ module Network.Google (
 
 import Control.Exception (finally)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-import Data.List (intersperse)
+import Data.List (intercalate)
 import Data.Maybe (fromJust)
 import Data.ByteString as BS (ByteString)
 import Data.ByteString.Char8 as BS8 (ByteString, append, pack)
@@ -154,7 +154,7 @@ instance DoRequest () where
 instance DoRequest Element where
   doManagedRequest manager request =
     do
-      result <- (doManagedRequest manager request :: IO String)
+      result <- doManagedRequest manager request :: IO String
       return $ fromJust $ parseXMLDoc result
 
 
@@ -218,10 +218,10 @@ appendQuery query request =
     makeParameter :: (String, String) -> String
     makeParameter (k, v) = k ++ "=" ++ urlEncode v
     query' :: String
-    query' = concat $ intersperse "&" $ map makeParameter query
+    query' = intercalate "&" $ map makeParameter query
   in
     request
       {
         -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
-        queryString = BS8.pack $ "?" ++ query'
+        queryString = BS8.pack $ '?' : query'
       }
