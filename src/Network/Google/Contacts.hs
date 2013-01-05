@@ -22,7 +22,6 @@ module Network.Google.Contacts (
 
 import Control.Monad ((<=<), (>>), liftM)
 import Crypto.GnuPG (Recipient, decrypt, encrypt)
-import Data.ByteString.Util (lbsToS)
 import Data.List (stripPrefix)
 import Data.Maybe (catMaybes, fromJust)
 import Network.Google (AccessToken, doRequest, makeRequest, makeRequestValue)

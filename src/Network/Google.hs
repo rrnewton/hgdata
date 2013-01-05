@@ -27,6 +27,7 @@ module Network.Google (
 , appendQuery
 , doManagedRequest
 , doRequest
+, makeHeaderName
 , makeProjectRequest
 , makeRequest
 , makeRequestValue
@@ -37,10 +38,10 @@ import Control.Exception (finally)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.List (intersperse)
 import Data.Maybe (fromJust)
-import Data.ByteString.Util (lbsToS)
 import Data.ByteString as BS (ByteString)
-import Data.ByteString.Char8 as BS8 (ByteString, append, pack, unpack)
+import Data.ByteString.Char8 as BS8 (ByteString, append, pack)
 import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
+import Data.ByteString.Lazy.UTF8 (toString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), closeManager, def, httpLbs, newManager, responseBody)
@@ -69,6 +70,7 @@ makeRequest ::
   -> (String, String)  -- ^ The host and path for the request.
   -> Request m         -- ^ The HTTP request.
 makeRequest accessToken (apiName, apiVersion) method (host, path) =
+  -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
   def {
     method = BS8.pack method
   , secure = True
@@ -132,7 +134,7 @@ instance DoRequest String where
   doManagedRequest manager request =
     do
       result <- doManagedRequest manager request
-      return $ lbsToS result
+      return $ toString result
 
 
 instance DoRequest [(String, String)] where
@@ -160,6 +162,7 @@ instance DoRequest Element where
 makeRequestValue ::
      String          -- ^ The string.
   -> BS8.ByteString  -- ^ The prepared string.
+-- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
 makeRequestValue = BS8.pack
 
 
@@ -167,6 +170,7 @@ makeRequestValue = BS8.pack
 makeHeaderName ::
      String                -- ^ The name.
   -> CI.CI BS8.ByteString  -- ^ The prepared name.
+-- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
 makeHeaderName = CI.mk . BS8.pack
 
 
@@ -174,6 +178,7 @@ makeHeaderName = CI.mk . BS8.pack
 makeHeaderValue ::
      String          -- ^ The value.
   -> BS8.ByteString  -- ^ The prepared value.
+-- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
 makeHeaderValue = BS8.pack
 
 
@@ -217,5 +222,6 @@ appendQuery query request =
   in
     request
       {
+        -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
         queryString = BS8.pack $ "?" ++ query'
       }

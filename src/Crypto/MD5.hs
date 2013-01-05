@@ -28,11 +28,10 @@ module Crypto.MD5 (
 
 import Data.Binary as B (encode)
 import Data.ByteString as BS (concat)
-import Data.ByteString.Char8 (unpack)
-import Data.ByteString.Lazy (ByteString, toChunks)
+import Data.ByteString.Char8 as BS8 (unpack)
+import Data.ByteString.Lazy as LBS (ByteString, toChunks)
 import Data.ByteString.Base64 as B64 (encode)
 import Data.Digest.Pure.MD5 (MD5Digest, md5)
-import Numeric (readHex)
 
 
 -- | MD5 checksum information.
@@ -63,4 +62,4 @@ md5Base64 x =
 md5ToBase64 ::
      MD5Digest  -- ^ The MD5 digest.
   -> MD5Base64  -- ^ The MD5 checksum in base 64 encoding.
-md5ToBase64 = unpack . B64.encode . BS.concat . toChunks . B.encode
+md5ToBase64 = BS8.unpack . B64.encode . BS.concat . LBS.toChunks . B.encode

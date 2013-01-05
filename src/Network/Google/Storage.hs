@@ -45,8 +45,8 @@ import Control.Monad (liftM)
 import Control.Monad.Trans.Resource (ResourceT)
 import Crypto.MD5 (MD5Info, md5Base64)
 import Data.ByteString.Char8 (unpack)
+import Data.ByteString.UTF8 (fromString)
 import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Util (sToBs)
 import Data.List (intersperse, stripPrefix)
 import Data.List.Util (separate)
 import Data.Maybe (fromJust, isNothing, maybe)
@@ -118,7 +118,8 @@ makeHost bucket = bucket ++ "." ++ storageHost
 makePath ::
      String  -- ^ The unencoded path.
   -> String  -- ^ The URL-encoded path.
-makePath = ('/' :) . concat . intersperse "/" . map (urlEncode . unpack . sToBs) . separate '/'
+-- TODO: Review whether the sequence of UTF-8 encoding and URL encoding is correct.  This works correctly with tests of exotic unicode sequences, however.
+makePath = ('/' :) . concat . intersperse "/" . map (urlEncode . unpack . fromString) . separate '/'
 
 
 -- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.

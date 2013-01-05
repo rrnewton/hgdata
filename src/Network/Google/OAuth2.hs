@@ -28,9 +28,9 @@ module Network.Google.OAuth2 (
 
 
 import Data.ByteString.Char8 as BS8 (ByteString, pack)
-import Data.ByteString.Util (lbsToS)
-import Data.CaseInsensitive as CI (CI(..), mk)
+import Data.ByteString.Lazy.UTF8 (toString)
 import Data.List (intercalate)
+import Network.Google (makeHeaderName)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, responseBody, withManager)
 import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
@@ -192,12 +192,15 @@ decodeTokens' tokens value =
 
 
 -- | Peform OAuth 2.0 authentication, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp#handlingtheresponse>.
-doOAuth2 :: OAuth2Client -> String -> String -> IO (JSObject JSValue)
+doOAuth2 ::
+     OAuth2Client           -- ^ The client.
+  -> String                 -- ^ The grant type.
+  -> String                 -- ^ The
+  -> IO (JSObject JSValue)  -- ^ The action returing the JSON response from making the request.
 doOAuth2 client grantType extraBody =
   do
     let
-      makeHeaderName :: String -> CI.CI BS8.ByteString
-      makeHeaderName = CI.mk . BS8.pack
+      -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
       request =
         def {
           method = BS8.pack "POST"
@@ -216,7 +219,7 @@ doOAuth2 client grantType extraBody =
         }
     response <- withManager $ httpLbs request
     let
-      (Ok result) = decode . lbsToS $ responseBody response
+      (Ok result) = decode . toString $ responseBody response
     return $ result
 
 
@@ -227,8 +230,6 @@ validateTokens ::
 validateTokens tokens =
   do
     let
-      makeHeaderName :: String -> CI.CI BS8.ByteString
-      makeHeaderName = CI.mk . BS8.pack
       request =
         def {
           method = BS8.pack "GET"
@@ -240,7 +241,7 @@ validateTokens tokens =
         }
     response <- withManager $ httpLbs request
     let
-      (Ok result) = decode . lbsToS $ responseBody response
+      (Ok result) = decode . toString $ responseBody response
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" result
     return expiresIn'
