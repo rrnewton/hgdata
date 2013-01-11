@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.3.3
+version: 0.3.5
 cabal-version: >=1.6
 build-type: Simple
 license: MIT
@@ -62,7 +62,7 @@ library
                    old-locale -any, process -any, pureMD5 -any, regex-posix -any,
                    resourcet -any, time -any, unix -any, utf8-string -any, xml -any
     exposed-modules: Crypto.GnuPG Crypto.MD5 Network.Google
-                     Network.Google.Contacts Network.Google.OAuth2
+                     Network.Google.Contacts Network.Google.OAuth2 Network.Google.Picasa
                      Network.Google.Storage Network.Google.Storage.Encrypted
                      Network.Google.Storage.Sync
     exposed: True
@@ -80,7 +80,7 @@ executable hgdata
     buildable: True
     hs-source-dirs: src
     other-modules: Network.Google Network.Google.Contacts
-                   Network.Google.Storage Network.Google.OAuth2
+                   Network.Google.Storage Network.Google.OAuth2 Network.Google.Picasa
                    Network.Google.Storage.Encrypted Network.Google.Storage.Sync
                    Crypto.MD5 Crypto.GnuPG Data.List.Util
  

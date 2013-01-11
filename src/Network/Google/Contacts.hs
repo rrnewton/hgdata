@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Portable.
+-- Portability :  Portable
 --
 -- | Functions for accessing the Google Contacts API, see <https://developers.google.com/google-apps/contacts/v3/>.
 --

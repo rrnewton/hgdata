@@ -28,6 +28,7 @@ import Data.Maybe (mapMaybe)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Contacts (extractGnuPGNotes, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
+import Network.Google.Picasa (defaultUser, listAlbums, listPhotos)
 import Network.Google.Storage (StorageAcl(Private), deleteObject, getBucket, getObject, headObject, putObject)
 import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
 import Network.Google.Storage.Sync (sync)
@@ -58,6 +59,17 @@ data HGData =
     , notes :: Maybe FilePath
     , encrypt :: [String]
     }
+  | PAlbums {
+      access :: String
+    , user :: String
+    , xml :: FilePath
+  }
+  | PPhotos {
+      access :: String
+    , user :: String
+    , album :: [String]
+    , xml :: FilePath
+  }
   | SList {
       access :: String
     , project :: String
@@ -113,8 +125,8 @@ data HGData =
 -- | Definition of program.
 hgData :: HGData
 hgData =
-  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.3.3, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, palbums, pphotos, slist, sget, sput, sdelete, shead, ssync]
+    &= summary "hgData v0.3.5, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
@@ -195,6 +207,41 @@ contacts = Contacts
       , "An OAuth 2.0 access token can be obtained using the \"hgdata oauth2exchange\" or \"hgdata oauth2refresh\" command."
       , ""
       , "A \"Client ID for installed applications\" and client secret can be obtained from the \"API Access\" section of the Google API Console <https://code.google.com/apis/console/>."
+      ]
+
+
+-- | List Picasa albums.
+palbums :: HGData
+palbums = PAlbums
+  {
+    access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
+  , user = def &= typ "ID" &= help "Picasa user ID"
+  , xml = def &= opt "/dev/stdout" &= typFile &= argPos 0
+  }
+    &= help "List Picasa albums."
+    &= details
+      [
+        "Use this command to list the albums, in XML format, for a Picasa user."
+      , ""
+      , "An OAuth 2.0 access token can be obtained using the \"hgdata oauth2exchange\" or \"hgdata oauth2refresh\" command. A project ID can be obtained from the \"API Access\" section of the Google API Console <https://code.google.com/apis/console/>."
+      ]
+
+
+-- | List Picasa photos.
+pphotos :: HGData
+pphotos = PPhotos
+  {
+    access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
+  , user = def &= opt defaultUser &= typ "ID" &= help "Picasa user ID"
+  , xml = def &= opt "/dev/stdout" &= typFile &= argPos 0
+  , album = def &= opt "" &= typ "ALBUM" &= args
+  }
+    &= help "List Picasa photos."
+    &= details
+      [
+        "Use this command to list the photos, in XML format, of album(s) for a Picasa user."
+      , ""
+      , "An OAuth 2.0 access token can be obtained using the \"hgdata oauth2exchange\" or \"hgdata oauth2refresh\" command. A project ID can be obtained from the \"API Access\" section of the Google API Console <https://code.google.com/apis/console/>."
       ]
 
 
@@ -338,7 +385,12 @@ dispatch :: HGData -> IO ()
 
 dispatch (OAuth2Url clientId) =
   putStrLn $ OA2.formUrl (OA2.OAuth2Client clientId undefined) $
-    mapMaybe (`lookup` OA2.googleScopes) ["Google Cloud Storage", "Contacts"]
+    mapMaybe (`lookup` OA2.googleScopes)
+    [
+      "Google Cloud Storage"
+    , "Contacts"
+    , "Picasa Web"
+    ]
 
 dispatch (OAuth2Exchange clientId clientSecret exchangeCode tokenFile) =
   do
@@ -363,6 +415,21 @@ dispatch (Contacts accessToken xmlOutput passwordOutput recipients) =
           writeFile x passwords
       )
       passwordOutput
+
+dispatch (PAlbums accessToken user xmlOutput) =
+  do
+    let
+      user' = if user == "" then defaultUser else user
+    result <- listAlbums (toAccessToken accessToken) user'
+    writeFile xmlOutput $ ppTopElement result
+
+dispatch (PPhotos accessToken user album xmlOutput) =
+  do
+    let
+      user' = if user == "" then defaultUser else user
+      album' = if not (null album) && head album == "" then [] else album
+    result <- listPhotos (toAccessToken accessToken) user' album'
+    writeFile xmlOutput $ ppTopElement result
 
 dispatch (SList accessToken projectId bucket xmlOutput) =
   do
