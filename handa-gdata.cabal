@@ -47,6 +47,12 @@ description: This project provides a Haskell library and command-line interface 
              * Downloading a full list of contacts in XML format
              .
              * Extracting and decrypting GnuPG/PGP text in contacts' Notes fields
+             .
+             For the Picasa API, the following operations are supported:
+             .
+             * Listing albums
+             .
+             * Listing photos in an album
 category: Network
 author: Brian W Bush <b.w.bush@acm.org>
 data-dir: ""
