@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.3.5
+version: 0.3.6
 cabal-version: >=1.6
 build-type: Simple
 license: MIT
@@ -42,6 +42,10 @@ description: This project provides a Haskell library and command-line interface 
              .
              * DELETE Object
              .
+             For the unofficial Google Bookmarks API, the following operations are supported:
+             .
+             * List bookmarks
+             .
              For the Google Contacts API, the following operations are supported:
              .
              * Downloading a full list of contacts in XML format
@@ -68,9 +72,9 @@ library
                    old-locale -any, process -any, pureMD5 -any, regex-posix -any,
                    resourcet -any, time -any, unix -any, utf8-string -any, xml -any
     exposed-modules: Crypto.GnuPG Crypto.MD5 Network.Google
-                     Network.Google.Contacts Network.Google.OAuth2 Network.Google.Picasa
-                     Network.Google.Storage Network.Google.Storage.Encrypted
-                     Network.Google.Storage.Sync
+                     Network.Google.Bookmarks Network.Google.Contacts
+                     Network.Google.OAuth2 Network.Google.Picasa Network.Google.Storage
+                     Network.Google.Storage.Encrypted Network.Google.Storage.Sync
     exposed: True
     buildable: True
     hs-source-dirs: src
@@ -87,6 +91,6 @@ executable hgdata
     hs-source-dirs: src
     other-modules: Network.Google Network.Google.Contacts
                    Network.Google.Storage Network.Google.OAuth2 Network.Google.Picasa
-                   Network.Google.Storage.Encrypted Network.Google.Storage.Sync
-                   Crypto.MD5 Crypto.GnuPG Data.List.Util
+                   Network.Google.Bookmarks Network.Google.Storage.Encrypted
+                   Network.Google.Storage.Sync Crypto.MD5 Crypto.GnuPG Data.List.Util
  

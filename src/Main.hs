@@ -26,6 +26,7 @@ import Data.Data(Data(..))
 import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
 import Data.Maybe (mapMaybe)
 import Network.Google (AccessToken, toAccessToken)
+import Network.Google.Bookmarks (listBookmarks)
 import Network.Google.Contacts (extractGnuPGNotes, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
 import Network.Google.Picasa (defaultUser, listAlbums, listPhotos)
@@ -52,6 +53,12 @@ data HGData =
     , secret :: String
     , refresh :: String
     , tokens :: FilePath
+  }
+  | BList {
+      email :: String
+    , password :: String
+    , sms :: String
+    , xml :: FilePath
   }
   | Contacts {
       access :: String
@@ -125,8 +132,8 @@ data HGData =
 -- | Definition of program.
 hgData :: HGData
 hgData =
-  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, contacts, palbums, pphotos, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.3.5, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, blist, contacts, palbums, pphotos, slist, sget, sput, sdelete, shead, ssync]
+    &= summary "hgData v0.3.6, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
@@ -185,6 +192,22 @@ oAuth2Refresh = OAuth2Refresh
       , "An OAuth 2.0 refresh token can be obtained using the \"hgdata oauth2exchange\" command."
       , ""
       , "A \"Client ID for installed applications\" and client secret can be obtained from the \"API Access\" section of the Google API Console <https://code.google.com/apis/console/>."
+      ]
+
+
+-- | List Google bookmarks.
+blist :: HGData
+blist = BList
+  {
+    email = def &= typ "ADDRESS" &= help "Google e-mail address"
+  , password = def &= typ "PASSWORD" &= help "Google password"
+  , sms = def &= typ "TOKEN" &= help "Google SMS token"
+  , xml = def &= opt "/dev/stdout" &= typFile &= argPos 0
+  }
+    &= help "List Google bookmarks."
+    &= details
+      [
+        "Use this command to list the bookmarks, in XML format, for a Google account."
       ]
 
 
@@ -401,6 +424,11 @@ dispatch (OAuth2Refresh clientId clientSecret refreshToken tokenFile) =
   do
     tokens <- OA2.refreshTokens (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined)
     writeFile tokenFile $ show tokens
+
+dispatch (BList email password sms xmlOutput) =
+  do
+    result <- listBookmarks email password sms
+    writeFile xmlOutput $ ppTopElement result
 
 dispatch (Contacts accessToken xmlOutput passwordOutput recipients) =
   do

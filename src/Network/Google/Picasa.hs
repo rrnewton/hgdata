@@ -1,7 +1,7 @@
 -----------------------------------------------------------------------------
 --
 -- Module      :  Network.Google.Picasa
--- Copyright   :  (c) 2012-13 Brian W Bush
+-- Copyright   :  (c) 2013 Brian W Bush
 -- License     :  MIT
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
@@ -58,7 +58,7 @@ type AlbumId = String
 listAlbums ::
      AccessToken  -- ^ The OAuth 2.0 access token.
   -> UserId       -- ^ The user ID for the photos.
-  -> IO Element   -- ^ The action returning the contacts in XML format.
+  -> IO Element   -- ^ The action returning the albums metadata in XML format.
 listAlbums accessToken userId =
   doRequest $ picasaFeedRequest accessToken userId Nothing
 
@@ -83,7 +83,7 @@ listPhotos ::
      AccessToken  -- ^ The OAuth 2.0 access token.
   -> UserId       -- ^ The user ID for the photos.
   -> [AlbumId]    -- ^ The album ID for the photos, or all photos if null.
-  -> IO Element   -- ^ The action returning the contacts in XML format.
+  -> IO Element   -- ^ The action returning the photo metadata in XML format.
 listPhotos accessToken userId albumIds =
   do
     albumIds' <-
