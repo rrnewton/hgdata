@@ -46,6 +46,12 @@ description: This project provides a Haskell library and command-line interface 
              .
              * List bookmarks
              .
+             For the Google Books API, the following operations are supported:
+             .
+             * List bookshelves
+             .
+             * List books
+             .
              For the Google Contacts API, the following operations are supported:
              .
              * Downloading a full list of contacts in XML format
