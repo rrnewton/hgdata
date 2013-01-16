@@ -24,7 +24,7 @@ module Network.Google.Books (
 
 import Network.Google (AccessToken, doRequest, makeRequest)
 import Network.HTTP.Conduit (Request)
-import Text.JSON (JSValue(JSArray))
+import Text.JSON (JSObject, JSValue(..), Result(Ok), decode, valFromObj)
 
 
 -- | The host for API access.
@@ -44,19 +44,43 @@ type ShelfId = String
 -- | List the bookshelves, see <https://developers.google.com/books/docs/v1/using#RetrievingMyBookshelves>.
 listBookshelves ::
      AccessToken  -- ^ The OAuth 2.0 access token.
-  -> IO JSValue   -- ^ The action returning the albums metadata in XML format.
+  -> IO JSValue   -- ^ The action returning the bookshelves' metadata in JSON format.
 listBookshelves accessToken =
   doRequest $ booksRequest accessToken Nothing
+
+
+-- | List the bookshelf IDs, see <https://developers.google.com/books/docs/v1/using#RetrievingMyBookshelves>.
+listBookshelfIds ::
+     AccessToken  -- ^ The OAuth 2.0 access token.
+  -> IO [String]  -- ^ The action returning list of bookshelf IDs.
+listBookshelfIds accessToken =
+  do
+    JSObject result <- listBookshelves accessToken
+    let
+      extractId :: JSValue -> String
+      extractId (JSObject x) =
+        let
+          y :: Rational
+          Ok (JSRational _ y) = valFromObj "id" x
+        in
+          show (round y :: Int)
+      items :: [JSValue]
+      Ok (JSArray items) = valFromObj "items" result
+    return $ map extractId items
 
 
 -- | List the books, see <https://developers.google.com/books/docs/v1/using#RetrievingMyBookshelfVolumes>.
 listBooks ::
      AccessToken  -- ^ The OAuth 2.0 access token.
   -> [ShelfId]    -- ^ The bookshelf IDs.
-  -> IO JSValue   -- ^ The action returning the albums metadata in XML format.
+  -> IO JSValue   -- ^ The action returning the books' metadata in JSON format.
 listBooks accessToken shelves =
   do
-    results <- mapM (listShelfBooks accessToken) shelves
+    shelves' <-
+      if null shelves
+        then listBookshelfIds accessToken
+        else return shelves
+    results <- mapM (listShelfBooks accessToken) shelves'
     return $ JSArray results
 
 
@@ -64,7 +88,7 @@ listBooks accessToken shelves =
 listShelfBooks ::
      AccessToken  -- ^ The OAuth 2.0 access token.
   -> ShelfId      -- ^ The bookshelf ID.
-  -> IO JSValue   -- ^ The action returning the albums metadata in XML format.
+  -> IO JSValue   -- ^ The action returning the books' metadata in JSON format.
 listShelfBooks accessToken shelf =
   doRequest $ booksRequest accessToken (Just shelf)
 
