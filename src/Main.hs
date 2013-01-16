@@ -27,6 +27,7 @@ import qualified Data.ByteString.Lazy as LBS (readFile, writeFile)
 import Data.Maybe (mapMaybe)
 import Network.Google (AccessToken, toAccessToken)
 import Network.Google.Bookmarks (listBookmarks)
+import Network.Google.Books (listBookshelves, listBooks)
 import Network.Google.Contacts (extractGnuPGNotes, listContacts)
 import qualified Network.Google.OAuth2 as OA2 (OAuth2Client(..), OAuth2Tokens(..), exchangeCode, formUrl, googleScopes, refreshTokens)
 import Network.Google.Picasa (defaultUser, listAlbums, listPhotos)
@@ -34,6 +35,7 @@ import Network.Google.Storage (StorageAcl(Private), deleteObject, getBucket, get
 import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
 import Network.Google.Storage.Sync (sync)
 import System.Console.CmdArgs
+import Text.JSON (encode)
 import Text.XML.Light (ppTopElement)
 
 
@@ -54,7 +56,7 @@ data HGData =
     , refresh :: String
     , tokens :: FilePath
   }
-  | BList {
+  | Bookmarks {
       email :: String
     , password :: String
     , sms :: String
@@ -66,12 +68,21 @@ data HGData =
     , notes :: Maybe FilePath
     , encrypt :: [String]
     }
-  | PAlbums {
+  | Bookshelves {
+      access :: String
+    , xml :: FilePath
+  }
+  | Books {
+      access :: String
+    , shelves :: [String]
+    , xml :: FilePath
+  }
+  | Albums {
       access :: String
     , user :: String
     , xml :: FilePath
   }
-  | PPhotos {
+  | Photos {
       access :: String
     , user :: String
     , album :: [String]
@@ -132,8 +143,8 @@ data HGData =
 -- | Definition of program.
 hgData :: HGData
 hgData =
-  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, blist, contacts, palbums, pphotos, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.3.6, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, bookmarks, bookshelves, books, contacts, albums, photos, slist, sget, sput, sdelete, shead, ssync]
+    &= summary "hgData v0.4.0, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
@@ -196,8 +207,8 @@ oAuth2Refresh = OAuth2Refresh
 
 
 -- | List Google bookmarks.
-blist :: HGData
-blist = BList
+bookmarks :: HGData
+bookmarks = Bookmarks
   {
     email = def &= typ "ADDRESS" &= help "Google e-mail address"
   , password = def &= typ "PASSWORD" &= help "Google password"
@@ -233,9 +244,42 @@ contacts = Contacts
       ]
 
 
+-- | List bookshelves in My Library.
+bookshelves :: HGData
+bookshelves = Bookshelves
+  {
+    access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
+  , xml = def &= opt "/dev/stdout" &= typFile &= argPos 0
+  }
+    &= help "List bookshelves in My Library."
+    &= details
+      [
+        "Use this command to list the bookshelves in My Library, in JSON format, for the authenticated user."
+      , ""
+      , "An OAuth 2.0 access token can be obtained using the \"hgdata oauth2exchange\" or \"hgdata oauth2refresh\" command. A project ID can be obtained from the \"API Access\" section of the Google API Console <https://code.google.com/apis/console/>."
+      ]
+
+
+-- | List bookshelves in My Library.
+books :: HGData
+books = Books
+  {
+    access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
+  , xml = def &= opt "/dev/stdout" &= typFile &= argPos 0
+  , shelves = def &= typ "ID" &= args
+  }
+    &= help "Lists books in My Library."
+    &= details
+      [
+        "Use this command to list the books in My Library, in JSON format, for the authenticated user."
+      , ""
+      , "An OAuth 2.0 access token can be obtained using the \"hgdata oauth2exchange\" or \"hgdata oauth2refresh\" command. A project ID can be obtained from the \"API Access\" section of the Google API Console <https://code.google.com/apis/console/>."
+      ]
+
+
 -- | List Picasa albums.
-palbums :: HGData
-palbums = PAlbums
+albums :: HGData
+albums = Albums
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , user = def &= typ "ID" &= help "Picasa user ID"
@@ -251,8 +295,8 @@ palbums = PAlbums
 
 
 -- | List Picasa photos.
-pphotos :: HGData
-pphotos = PPhotos
+photos :: HGData
+photos = Photos
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , user = def &= opt defaultUser &= typ "ID" &= help "Picasa user ID"
@@ -413,6 +457,7 @@ dispatch (OAuth2Url clientId) =
       "Google Cloud Storage"
     , "Contacts"
     , "Picasa Web"
+    , "Google Books"
     ]
 
 dispatch (OAuth2Exchange clientId clientSecret exchangeCode tokenFile) =
@@ -425,7 +470,7 @@ dispatch (OAuth2Refresh clientId clientSecret refreshToken tokenFile) =
     tokens <- OA2.refreshTokens (OA2.OAuth2Client clientId clientSecret) (OA2.OAuth2Tokens undefined refreshToken undefined undefined)
     writeFile tokenFile $ show tokens
 
-dispatch (BList email password sms xmlOutput) =
+dispatch (Bookmarks email password sms xmlOutput) =
   do
     result <- listBookmarks email password sms
     writeFile xmlOutput $ ppTopElement result
@@ -444,14 +489,24 @@ dispatch (Contacts accessToken xmlOutput passwordOutput recipients) =
       )
       passwordOutput
 
-dispatch (PAlbums accessToken user xmlOutput) =
+dispatch (Bookshelves accessToken xmlOutput) =
+  do
+    result <- listBookshelves (toAccessToken accessToken)
+    writeFile xmlOutput $ encode result
+
+dispatch (Books accessToken shelves xmlOutput) =
+  do
+    result <- listBooks (toAccessToken accessToken) shelves
+    writeFile xmlOutput $ encode result
+
+dispatch (Albums accessToken user xmlOutput) =
   do
     let
       user' = if user == "" then defaultUser else user
     result <- listAlbums (toAccessToken accessToken) user'
     writeFile xmlOutput $ ppTopElement result
 
-dispatch (PPhotos accessToken user album xmlOutput) =
+dispatch (Photos accessToken user album xmlOutput) =
   do
     let
       user' = if user == "" then defaultUser else user

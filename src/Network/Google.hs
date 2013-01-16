@@ -45,6 +45,7 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), closeManager, def, httpLbs, newManager, responseBody)
+import Text.JSON (JSValue, Result(Ok), decode)
 import Text.XML.Light (Element, parseXMLDoc)
 
 
@@ -156,6 +157,15 @@ instance DoRequest Element where
     do
       result <- doManagedRequest manager request :: IO String
       return $ fromJust $ parseXMLDoc result
+
+
+instance DoRequest JSValue where
+  doManagedRequest manager request =
+    do
+      result <- doManagedRequest manager request :: IO String
+      let
+        Ok result' = decode result
+      return result'
 
 
 -- | Prepare a string for inclusion in a request.

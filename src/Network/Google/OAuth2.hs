@@ -81,7 +81,7 @@ googleScopes =
   , ("Chrome Web Store", "https://www.googleapis.com/auth/chromewebstore.readonly")
   , ("Documents List", "https://docs.google.com/feeds/")
   , ("Google Drive", "https://www.googleapis.com/auth/drive")
-  , ("Google Drive", "Files https://www.googleapis.com/auth/drive.file")
+  , ("Google Drive Files", "Files https://www.googleapis.com/auth/drive.file")
   , ("Gmail", "https://mail.google.com/mail/feed/atom")
   , ("Google+", "https://www.googleapis.com/auth/plus.me")
   , ("Groups Provisioning", "https://apps-apis.google.com/a/feeds/groups/")
