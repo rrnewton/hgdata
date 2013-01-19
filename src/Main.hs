@@ -88,13 +88,13 @@ data HGData =
     , album :: [String]
     , xml :: FilePath
   }
-  | SList {
+  | GSList {
       access :: String
     , project :: String
     , bucket :: String
     , xml :: FilePath
     }
-  | SGet {
+  | GSGet {
       access :: String
     , project :: String
     , bucket :: String
@@ -102,7 +102,7 @@ data HGData =
     , output :: FilePath
     , decrypt :: Bool
     }
-  | SPut {
+  | GSPut {
       access :: String
     , project :: String
     , bucket :: String
@@ -111,20 +111,20 @@ data HGData =
     , acl :: String
     , encrypt :: [String]
     }
-  | SDelete {
+  | GSDelete {
       access :: String
     , project :: String
     , bucket :: String
     , key :: String
     }
-  | SHead {
+  | GSHead {
       access :: String
     , project :: String
     , bucket :: String
     , key :: String
     , output :: FilePath
   }
-  | SSync {
+  | GSSync {
       client :: String
     , secret :: String
     , refresh :: String
@@ -143,8 +143,25 @@ data HGData =
 -- | Definition of program.
 hgData :: HGData
 hgData =
-  modes [oAuth2Url, oAuth2Exchange, oAuth2Refresh, bookmarks, bookshelves, books, contacts, albums, photos, slist, sget, sput, sdelete, shead, ssync]
-    &= summary "hgData v0.4.0, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+  modes
+    [
+      oAuth2Url
+    , oAuth2Exchange
+    , oAuth2Refresh
+    , bookmarks
+    , bookshelves
+    , books
+    , contacts
+    , albums
+    , photos
+    , gslist
+    , gsget
+    , gsput
+    , gsdelete
+    , gshead
+    , gssync
+    ]
+    &= summary "hgData v0.4.1, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
@@ -313,14 +330,15 @@ photos = Photos
 
 
 -- | List objects in a Google Storage bucket.
-slist :: HGData
-slist = SList
+gslist :: HGData
+gslist = GSList
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , project = def &= typ "ID" &= help "Google API project number"
   , bucket = def &= typ "BUCKET" &= argPos 0
   , xml = def &= opt "/dev/stdout" &= typFile &= argPos 1
   }
+    &= name "gs-list"
     &= help "List objects in a Google Storage bucket."
     &= details
       [
@@ -331,8 +349,8 @@ slist = SList
 
 
 -- | Get an object from a Google Storage bucket.
-sget :: HGData
-sget = SGet
+gsget :: HGData
+gsget = GSGet
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , project = def &= typ "ID" &= help "Google API project number"
@@ -341,6 +359,7 @@ sget = SGet
   , output = def &= opt "/dev/stdout" &= typFile &= argPos 2
   , decrypt = def &= help "Attempt to decrypt the object"
   }
+    &= name "gs-get"
     &= help "Get an object from a Google Storage bucket."
     &= details
       [
@@ -353,8 +372,8 @@ sget = SGet
 
 
 -- | Put an object into a Google Storage bucket.
-sput :: HGData
-sput = SPut
+gsput :: HGData
+gsput = GSPut
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , project = def &= typ "ID" &= help "Google API project number"
@@ -364,6 +383,7 @@ sput = SPut
   , acl = def &= opt "private" &= typ "ACL" &= argPos 3
   , encrypt = def &= typ "RECIPIENT" &= help "Recipient to encrypt for"
   }
+    &= name "gs-put"
     &= help "Put an object into a Google Storage bucket."
     &= details
       [
@@ -378,14 +398,15 @@ sput = SPut
 
 
 -- | Delete an object from a Google Storage bucket.
-sdelete :: HGData
-sdelete = SDelete
+gsdelete :: HGData
+gsdelete = GSDelete
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , project = def &= typ "ID" &= help "Google API project number"
   , bucket = def &= typ "BUCKET" &= argPos 0
   , key = def &= typ "KEY" &= argPos 1
   }
+    &= name "gs-delete"
     &= help "Delete an object from a Google Storage bucket."
     &= details
       [
@@ -396,8 +417,8 @@ sdelete = SDelete
 
 
 -- | Get object metadata from a Google Storage bucket.
-shead :: HGData
-shead = SHead
+gshead :: HGData
+gshead = GSHead
   {
     access = def &= typ "TOKEN" &= help "OAuth 2.0 access token"
   , project = def &= typ "ID" &= help "Google API project number"
@@ -405,6 +426,7 @@ shead = SHead
   , key = def &= typ "KEY" &= argPos 1
   , output = def &= opt "/dev/stdout" &= typFile &= argPos 2
   }
+    &= name "gs-head"
     &= help "Get object metadata from a Google Storage bucket."
     &= details
       [
@@ -415,8 +437,8 @@ shead = SHead
 
 
 -- | Synchronize a directory with a Google Storage bucket.
-ssync :: HGData
-ssync = SSync
+gssync :: HGData
+gssync = GSSync
   {
     client = def &= typ "ID" &= help "OAuth 2.0 client ID"
   , secret = def &= typ "SECRET" &= help "OAuth 2.0 client secret"
@@ -430,6 +452,7 @@ ssync = SSync
   , md5sums = def &= help "Write file \".md5sum\" in directory"
   , purge = def &= help "Purge non-synchronized objects from the bucket"
   }
+    &= name "gs-sync"
     &= help "Synchronize a directory with a Google Storage bucket."
     &= details
       [
@@ -514,35 +537,35 @@ dispatch (Photos accessToken user album xmlOutput) =
     result <- listPhotos (toAccessToken accessToken) user' album'
     writeFile xmlOutput $ ppTopElement result
 
-dispatch (SList accessToken projectId bucket xmlOutput) =
+dispatch (GSList accessToken projectId bucket xmlOutput) =
   do
     result <- getBucket projectId bucket (toAccessToken accessToken)
     writeFile xmlOutput $ ppTopElement result
 
-dispatch (SGet accessToken projectId bucket key output decrypt) =
+dispatch (GSGet accessToken projectId bucket key output decrypt) =
   do
     let getter = if decrypt then getEncryptedObject else getObject
     result <- getter projectId bucket key (toAccessToken accessToken)
     LBS.writeFile output result
 
-dispatch (SPut accessToken projectId bucket key input acl recipients) =
+dispatch (GSPut accessToken projectId bucket key input acl recipients) =
   do
     let putter = if null recipients then putObject else putEncryptedObject recipients
     bytes <- LBS.readFile input
     putter projectId (read acl) bucket key Nothing bytes Nothing (toAccessToken accessToken)
     return ()
 
-dispatch (SDelete accessToken projectId bucket key) =
+dispatch (GSDelete accessToken projectId bucket key) =
   do
     result <- deleteObject projectId bucket key (toAccessToken accessToken)
     return ()
 
-dispatch (SHead accessToken projectId bucket key output) =
+dispatch (GSHead accessToken projectId bucket key output) =
   do
     result <- headObject projectId bucket key (toAccessToken accessToken)
     writeFile output $ show result
 
-dispatch (SSync clientId clientSecret refreshToken projectId bucket directory acl recipients exclusionFile md5sums purge) =
+dispatch (GSSync clientId clientSecret refreshToken projectId bucket directory acl recipients exclusionFile md5sums purge) =
   do
     let
       acl' = if acl == "" then Private else read acl
