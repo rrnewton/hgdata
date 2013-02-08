@@ -23,7 +23,7 @@ module Network.Google.Contacts (
 import Control.Monad ((<=<), (>>), liftM)
 import Crypto.GnuPG (Recipient, decrypt, encrypt)
 import Data.List (stripPrefix)
-import Data.Maybe (fromJust, mapMaybe)
+import Data.Maybe (fromJust, fromMaybe, mapMaybe)
 import Network.Google (AccessToken, doRequest, makeRequest, makeRequestValue)
 import Network.HTTP.Conduit (Request(..), def, httpLbs, responseBody, withManager)
 import Text.XML.Light (Element, elChildren, filterChildName, parseXMLDoc, qName, strContent)
@@ -97,8 +97,9 @@ extractGnuPGNotes' xml =
     getEntry :: Element -> Maybe (String, String, String)
     getEntry x =
       do
-        t <- getTitle x
-        o <- getOrganization x
+        let
+          t = fromMaybe "" $ getTitle x
+          o = fromMaybe "" $ getOrganization x
         p <- getPGP x
         return (t, o, p)
   in
