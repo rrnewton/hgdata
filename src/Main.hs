@@ -172,6 +172,7 @@ oAuth2Url = OAuth2Url
   {
     client = def &= typ "ID" &= help "Client ID"
   }
+    &= name "oauth2-url"
     &= help "Generate an OAuth 2.0 URL."
     &= details
       [
@@ -192,6 +193,7 @@ oAuth2Exchange = OAuth2Exchange
   , code = def &= typ "CODE" &= argPos 0
   , tokens = def &= opt "/dev/stdout" &= typFile &= argPos 1
   }
+    &= name "oauth2-exchange"
     &= help "Exchange an OAuth 2.0 code for tokens."
     &= details
       [
@@ -212,6 +214,7 @@ oAuth2Refresh = OAuth2Refresh
   , refresh = def &= typ "TOKEN" &= help "OAuth 2.0 refresh token"
   , tokens = def &= opt "/dev/stdout" &= typFile &= argPos 0
   }
+    &= name "oauth2-refresh"
     &= help "Refresh OAuth 2.0 tokens."
     &= details
       [
