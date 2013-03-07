@@ -28,7 +28,7 @@ import Crypto.GnuPG (Recipient)
 import Crypto.MD5 (MD5Info, md5Base64)
 import qualified Data.ByteString.Lazy as LBS (ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
-import Data.List ((\\), deleteFirstsBy, intersectBy)
+import Data.List ((\\), deleteFirstsBy, sort)
 import Data.Maybe (fromJust, mapMaybe)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -170,15 +170,20 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
   do
     putStr "LOCAL "
     hFlush stdout
-    local <- walkDirectories directory
+    local <- liftM sort $ walkDirectories directory
     print $ length local
+    putStr "EXCLUDED "
+    hFlush stdout
+    let
+      local' = filter excluder local
+    print $ length local - length local'
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
     putStr "REMOTE "
     hFlush stdout
     remote' <- lister $ toAccessToken $ accessToken tokens'
     let
-      remote = parseMetadata remote'
+      remote = sort $ parseMetadata remote'
     print $ length remote
     let
       tolerance = 300
@@ -188,20 +193,15 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && fst eTag == fst eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
       earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > addUTCTime tolerance time'
-    putStr "EXCLUDED "
-    hFlush stdout
-    let
-      local' = filter excluder local
-    print $ length local - length local'
     putStr "PUTS "
     hFlush stdout
     let
-      changedObjects = deleteFirstsBy (if byETag then sameETag else earlierTime) local' remote
+      changedObjects = deleteFirstsBy' (if byETag then sameETag else earlierTime) local' remote
     print $ length changedObjects
     putStr "DELETES "
     hFlush stdout
     let
-      deletedObjects = deleteFirstsBy sameKey remote local'
+      deletedObjects = deleteFirstsBy' sameKey remote local'
     print $ length deletedObjects
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- if purge
@@ -211,6 +211,20 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
         return tokenClock'
     when md5sums $
       writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
+
+
+-- | Delete the first occurrence of items in the second list from the first list, assuming both lists are sorted.
+deleteFirstsBy' :: Ord a =>
+     (a -> a -> Bool)  -- ^ The equality function.
+  -> [a]               -- ^ The first list, which must have been sorted.
+  -> [a]               -- ^ The second list, which must have been sorted.
+  -> [a]               -- ^ The items in the first list not appearing in the second list.
+deleteFirstsBy' _ [] _ = []
+deleteFirstsBy' _ xx [] = xx
+deleteFirstsBy' equal xx@(x : xs) yy@(y : ys)
+  | equal x y = deleteFirstsBy' equal xs ys
+  | x > y     = deleteFirstsBy' equal xx ys
+  | otherwise = x : deleteFirstsBy' equal xs yy
 
 
 -- | Put a list of objects.
@@ -277,6 +291,12 @@ data ObjectMetadata = ObjectMetadata
   , lastModified :: UTCTime  -- ^ The object's modification time.
   }
     deriving (Show)
+
+instance Ord ObjectMetadata where
+  compare (ObjectMetadata key _ _ _) (ObjectMetadata key' _ _ _) = compare key key'
+
+instance Eq ObjectMetadata where
+  (ObjectMetadata key _ _ _) == (ObjectMetadata key' _ _ _) = key == key'
 
 
 -- | Parse XML metadata into object descriptions.
