@@ -25,7 +25,7 @@ module Network.Google.Storage.Sync (
 import Control.Exception (SomeException, finally, handle)
 import Control.Monad (filterM, liftM, when)
 import Crypto.GnuPG (Recipient)
-import Crypto.MD5 (MD5Info, md5Base64)
+import Crypto.MD5 (MD5Info, md5Base64, md5Empty)
 import qualified Data.ByteString.Lazy as LBS (ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), sort)
@@ -72,12 +72,14 @@ sync projectId acl bucket client tokens directory recipients exclusions md5sums 
     putStrLn $ "ACCESS " ++ show acl
     putStr "LOCAL "
     hFlush stdout
-    local <- liftM sort $ walkDirectories directory
+    let
+      byETag = null recipients && md5sums
+    local <- liftM sort $ walkDirectories byETag directory
     print $ length local
     putStr "EXCLUDED "
     hFlush stdout
     let
-      local' = filter ((makeExcluder exclusions)) local
+      local' = filter (makeExcluder exclusions) local
     print $ length local - length local'
     manager <- newManager def
     finally
@@ -87,7 +89,7 @@ sync projectId acl bucket client tokens directory recipients exclusions md5sums 
           ((if null recipients then putObjectUsingManager manager else putEncryptedObjectUsingManager manager recipients) projectId acl bucket)
           (deleteObjectUsingManager manager projectId bucket)
           client tokens directory
-          (null recipients)
+          byETag
           local'
           md5sums
           purge
@@ -192,7 +194,7 @@ sync' lister putter deleter client tokens directory byETag local md5sums purge =
       sameETag :: ObjectMetadata -> ObjectMetadata -> Bool
       sameETag (ObjectMetadata key eTag _ _) (ObjectMetadata key' eTag' _ _) = key == key' && fst eTag == fst eTag'
       earlierTime :: ObjectMetadata -> ObjectMetadata -> Bool
-      earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' eTag' _ time') = key == key' && time > addUTCTime tolerance time'
+      earlierTime (ObjectMetadata key _ _ time) (ObjectMetadata key' _ _ time') = key == key' &&  addUTCTime tolerance time < time'
     putStr "PUTS "
     hFlush stdout
     let
@@ -246,8 +248,10 @@ walkPutter client tokenClock directory putter (x : xs) =
       handler
       (
         do
+          let
+            eTag' x = if eTag x == md5Empty then Nothing else Just $ eTag x
           bytes <- LBS.readFile $ directory ++ [pathSeparator] ++ key'
-          putter key' Nothing bytes (Just $ eTag x) (toAccessToken $ accessToken tokens')
+          putter key' Nothing bytes (eTag' x) (toAccessToken $ accessToken tokens')
           return ()
       )
     walkPutter client tokenClock' directory putter xs
@@ -322,25 +326,27 @@ parseMetadata root =
 
 -- | Gather file metadata from the file system.
 walkDirectories ::
-     FilePath             -- ^ The directory to be synchronized.
+     Bool                 -- ^ Whether to compute MD5 sums.
+  -> FilePath             -- ^ The directory to be synchronized.
   -> IO [ObjectMetadata]  -- ^ Action returning file descriptions.
-walkDirectories directory = walkDirectories' (directory ++ [pathSeparator]) [""]
+walkDirectories eTags directory = walkDirectories' eTags (directory ++ [pathSeparator]) [""]
 
 
 -- | Gather file metadata from the file system.
 walkDirectories' ::
-     FilePath             -- ^ The directory to be synchronized.
+     Bool                 -- ^ Whether to compute MD5 sums.
+  -> FilePath             -- ^ The directory to be synchronized.
   -> [FilePath]           -- ^ The subdirectories still remaining to be described.
   -> IO [ObjectMetadata]  -- ^ Action returning file descriptions.
-walkDirectories' _ [] = return []
-walkDirectories' directory (y : ys) =
+walkDirectories' _ _ [] = return []
+walkDirectories' eTags directory (y : ys) =
   handle
     ((
       \exception ->
         do
           putStrLn $ "  LIST " ++ y
           putStrLn $ "    FAIL " ++ show exception
-          walkDirectories' directory ys
+          walkDirectories' eTags directory ys
     ) :: SomeException -> IO [ObjectMetadata])
     (
       do
@@ -354,17 +360,13 @@ walkDirectories' directory (y : ys) =
               bytes <- LBS.readFile path
               status <- getFileStatus path
               let
-                lastTime :: UTCTime
-                lastTime = posixSecondsToUTCTime $ realToFrac $ modificationTime status
-                size :: Int
-                size = fromIntegral $ fileSize status
-              let !eTag = md5Base64 bytes
-              let !x = fst eTag
-              let !y = snd eTag
+                !lastTime = posixSecondsToUTCTime $ realToFrac $ modificationTime status
+                !size = fromIntegral $ fileSize status
+                !eTag = if eTags then md5Base64 bytes else md5Empty
               return $ ObjectMetadata key eTag size lastTime
         files <- liftM (map ((y ++ [pathSeparator]) ++) . ( \\ [".", ".."]))
                $ getDirectoryContents (directory ++ y)
         y' <- filterM (doesDirectoryExist . (directory ++)) files
         x' <- mapM makeMetadata $ files \\ y'
-        liftM (x' ++) $ walkDirectories' directory (y' ++ ys)
+        liftM (x' ++) $ walkDirectories' eTags directory (y' ++ ys)
     )
