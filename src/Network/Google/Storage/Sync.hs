@@ -28,7 +28,7 @@ import Crypto.GnuPG (Recipient)
 import Crypto.MD5 (MD5Info, md5Base64)
 import qualified Data.ByteString.Lazy as LBS (ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
-import Data.List ((\\), deleteFirstsBy, sort)
+import Data.List ((\\), sort)
 import Data.Maybe (fromJust, mapMaybe)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -66,11 +66,20 @@ sync ::
   -> IO ()             -- ^ The IO action for the synchronization.
 sync projectId acl bucket client tokens directory recipients exclusions md5sums purge =
   do
-    manager <- newManager def
     putStrLn $ "DIRECTORY " ++ directory
     putStrLn $ "PROJECT " ++ projectId
     putStrLn $ "BUCKET " ++ bucket
     putStrLn $ "ACCESS " ++ show acl
+    putStr "LOCAL "
+    hFlush stdout
+    local <- liftM sort $ walkDirectories directory
+    print $ length local
+    putStr "EXCLUDED "
+    hFlush stdout
+    let
+      local' = filter ((makeExcluder exclusions)) local
+    print $ length local - length local'
+    manager <- newManager def
     finally
       (
         sync'
@@ -79,7 +88,7 @@ sync projectId acl bucket client tokens directory recipients exclusions md5sums 
           (deleteObjectUsingManager manager projectId bucket)
           client tokens directory
           (null recipients)
-          (makeExcluder exclusions)
+          local'
           md5sums
           purge
       )(
@@ -155,28 +164,19 @@ makeExcluder exclusions (ObjectMetadata candidate _ _ _) =
 
 -- | Synchronize a filesystem directory with a Google Storage bucket.
 sync' ::
-     Lister        -- ^ The bucket listing function.
-  -> Putter        -- ^ The object putting function.
-  -> Deleter       -- ^ The object deletion function.
-  -> OAuth2Client  -- ^ The OAuth 2.0 client information.
-  -> OAuth2Tokens  -- ^ The OAuth 2.0 tokens.
-  -> FilePath      -- ^ The directory to be synchronized.
-  -> Bool          -- ^ Whether to use ETags in comparing object metadata.
-  -> Excluder      -- ^ The function for excluding objects.
-  -> Bool          -- ^ Whether to write a file \".md5sum\" of MD5 sums of synchronized files into the root directory.
-  -> Bool          -- ^ Whether to delete keys from the bucket that do not correspond to files on the filesystem.
-  -> IO ()         -- ^ The IO action for the synchronization.
-sync' lister putter deleter client tokens directory byETag excluder md5sums purge =
+     Lister            -- ^ The bucket listing function.
+  -> Putter            -- ^ The object putting function.
+  -> Deleter           -- ^ The object deletion function.
+  -> OAuth2Client      -- ^ The OAuth 2.0 client information.
+  -> OAuth2Tokens      -- ^ The OAuth 2.0 tokens.
+  -> FilePath          -- ^ The directory to be synchronized.
+  -> Bool              -- ^ Whether to use ETags in comparing object metadata.
+  -> [ObjectMetadata]  -- ^ The local file system objects to be synchronized.
+  -> Bool              -- ^ Whether to write a file \".md5sum\" of MD5 sums of synchronized files into the root directory.
+  -> Bool              -- ^ Whether to delete keys from the bucket that do not correspond to files on the filesystem.
+  -> IO ()             -- ^ The IO action for the synchronization.
+sync' lister putter deleter client tokens directory byETag local md5sums purge =
   do
-    putStr "LOCAL "
-    hFlush stdout
-    local <- liftM sort $ walkDirectories directory
-    print $ length local
-    putStr "EXCLUDED "
-    hFlush stdout
-    let
-      local' = filter excluder local
-    print $ length local - length local'
     now <- getCurrentTime
     tokenClock@(_, tokens') <- checkExpiration client (addUTCTime (-60) now, tokens)
     putStr "REMOTE "
@@ -196,12 +196,12 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
     putStr "PUTS "
     hFlush stdout
     let
-      changedObjects = deleteFirstsBy' (if byETag then sameETag else earlierTime) local' remote
+      changedObjects = deleteFirstsBy' (if byETag then sameETag else earlierTime) local remote
     print $ length changedObjects
     putStr "DELETES "
     hFlush stdout
     let
-      deletedObjects = deleteFirstsBy' sameKey remote local'
+      deletedObjects = deleteFirstsBy' sameKey remote local
     print $ length deletedObjects
     tokenClock' <- walkPutter client tokenClock directory putter changedObjects
     tokenClock'' <- if purge
@@ -210,7 +210,7 @@ sync' lister putter deleter client tokens directory byETag excluder md5sums purg
       else
         return tokenClock'
     when md5sums $
-      writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local'
+      writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local
 
 
 -- | Delete the first occurrence of items in the second list from the first list, assuming both lists are sorted.
