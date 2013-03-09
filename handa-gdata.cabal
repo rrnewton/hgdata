@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.5.2
+version: 0.5.3
 cabal-version: >=1.6
 build-type: Simple
 license: MIT
@@ -74,9 +74,10 @@ source-repository head
 library
     build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, http-conduit <1.9, json -any,
-                   old-locale -any, process -any, pureMD5 -any, regex-posix -any,
-                   resourcet -any, time -any, unix -any, utf8-string -any, xml -any
+                   directory -any, filepath -any, handa-data -any, http-conduit <1.9,
+                   json -any, old-locale -any, process -any, pureMD5 -any,
+                   regex-posix -any, resourcet -any, time -any, unix -any,
+                   utf8-string -any, xml -any
     exposed-modules: Crypto.GnuPG Crypto.MD5 Network.Google
                      Network.Google.Bookmarks Network.Google.Books
                      Network.Google.Contacts Network.Google.OAuth2 Network.Google.Picasa
@@ -85,14 +86,14 @@ library
     exposed: True
     buildable: True
     hs-source-dirs: src
-    other-modules: Data.List.Util
  
 executable hgdata
     build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, http-conduit <1.9, json -any,
-                   old-locale -any, process -any, pureMD5 -any, regex-posix -any,
-                   resourcet -any, time -any, unix -any, utf8-string -any, xml -any
+                   directory -any, filepath -any, handa-data -any, http-conduit <1.9,
+                   json -any, old-locale -any, process -any, pureMD5 -any,
+                   regex-posix -any, resourcet -any, time -any, unix -any,
+                   utf8-string -any, xml -any
     main-is: Main.hs
     buildable: True
     hs-source-dirs: src
@@ -100,5 +101,5 @@ executable hgdata
                    Network.Google.Storage Network.Google.OAuth2 Network.Google.Picasa
                    Network.Google.Bookmarks Network.Google.Books
                    Network.Google.Storage.Encrypted Network.Google.Storage.Sync
-                   Crypto.MD5 Crypto.GnuPG Data.List.Util
+                   Crypto.MD5 Crypto.GnuPG
  
