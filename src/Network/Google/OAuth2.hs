@@ -34,16 +34,15 @@
 --                               OAuth2Client(..), OAuth2Tokens(..))
 -- import Network.Google (makeRequest, doRequest)
 -- import Network.HTTP.Conduit (simpleHttp)
--- 
--- cid = \"INSTALLED_APP_CLIENT_ID\"
+-- --
+-- cid    = \"INSTALLED_APP_CLIENT_ID\"
 -- secret = \"INSTALLED_APP_SECRET_HERE\"
--- file = \"./tokens.txt\"
--- 
+-- file   = \"./tokens.txt\"
+-- --  
 -- main = do
 --   -- Ask for permission to read/write your fusion tables:
 --   let client = OAuth2Client { clientId = cid, clientSecret = secret }
 --       permissionUrl = formUrl client [\"https://www.googleapis.com/auth/fusiontables\"]
---
 --   b <- doesFileExist file
 --   unless b $ do 
 --       putStrLn$ \"Load this URL: \"++show permissionUrl
@@ -297,8 +296,8 @@ validateTokens tokens =
 -- enter data on the command line.  Subsequently, invocations on the same machine
 -- should not communicate with the user.
 -- 
-getCachedTokens :: OAuth2Client -- ^ The client is the "key" for token lookup.
-          -> IO OAuth2Tokens 
+getCachedTokens :: OAuth2Client -- ^ The client is the \"key\" for token lookup.
+                -> IO OAuth2Tokens 
 getCachedTokens client = do 
    cabalD <- getAppUserDataDirectory "cabal"
    let tokenD = cabalD </> "googleAuthTokens" 
@@ -310,7 +309,7 @@ getCachedTokens client = do
    f1       <- doesFileExist tokenF
    if f1 then do 
      toks <- fmap read (readFile tokenF)
-     -- Our policy is to always refresh:
+     -- Our policy is to *always* refresh:
      toks2 <- refreshTokens client toks
      atomicWriteFile tokenF (show toks2)
      return toks2
@@ -319,7 +318,7 @@ getCachedTokens client = do
      atomicWriteFile tokenF (show toks)
      return toks
  where 
-   -- This is the part where we require user interaction.
+   -- This is the part where we require user interaction:
    askUser = do 
      putStrLn$ "Load this URL: "++show permissionUrl
      runBrowser 
