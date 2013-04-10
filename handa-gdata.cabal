@@ -74,7 +74,7 @@ source-repository head
 library
     build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, handa-data -any, http-conduit <1.9,
+                   directory -any, filepath -any, split -any, http-conduit <1.9,
                    json -any, old-locale -any, process -any, pureMD5 -any,
                    regex-posix -any, resourcet -any, time -any, unix -any,
                    utf8-string -any, xml -any
@@ -90,7 +90,7 @@ library
 executable hgdata
     build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, handa-data -any, http-conduit <1.9,
+                   directory -any, filepath -any, split -any, http-conduit <1.9,
                    json -any, old-locale -any, process -any, pureMD5 -any,
                    regex-posix -any, resourcet -any, time -any, unix -any,
                    utf8-string -any, xml -any

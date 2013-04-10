@@ -10,6 +10,60 @@
 --
 -- | Functions for OAuth 2.0 authentication for Google APIs.
 --
+-- If you are new to Google web API's, bear in mind that there are /three/ different
+-- methods for accessing APIs (installed applications, web apps, service-to-service),
+-- and this library is most useful for \"installed applications\".
+--
+-- Installed applications need the user to grant permission in a browser at least
+-- once (see `formUrl`).  However, while the resulting `accessToken` expires quickly,
+-- the `refreshToken` can be used indefinitely for retrieving new access tokens.
+-- Thus this approach can be suitable for long running or periodic programs that
+-- access Google data.
+--
+-- Below is a quick-start program which will list any Google Fusion tables the user
+-- possesses.  It requires the client ID and secret retrieved from 
+-- <https://code.google.com/apis/console>.
+--
+-- @
+-- import Control.Monad (unless)
+-- import System.Info (os)
+-- import System.Process (system, rawSystem)
+-- import System.Exit    (ExitCode(..))
+-- import System.Directory (doesFileExist)
+-- import Network.Google.OAuth2 (formUrl, exchangeCode, refreshTokens,
+--                               OAuth2Client(..), OAuth2Tokens(..))
+-- import Network.Google (makeRequest, doRequest)
+-- import Network.HTTP.Conduit (simpleHttp)
+-- 
+-- cid = \"INSTALLED_APP_CLIENT_ID\"
+-- secret = \"INSTALLED_APP_SECRET_HERE\"
+-- file = \"./tokens.txt\"
+-- 
+-- main = do
+--   -- Ask for permission to read/write your fusion tables:
+--   let client = OAuth2Client { clientId = cid, clientSecret = secret }
+--       permissionUrl = formUrl client [\"https://www.googleapis.com/auth/fusiontables\"]
+--
+--   b <- doesFileExist file
+--   unless b $ do 
+--       putStrLn$ \"Load this URL: \"++show permissionUrl
+--       case os of
+--         \"linux\"  -> rawSystem \"gnome-open\" [permissionUrl]
+--         \"darwin\" -> rawSystem \"open\"       [permissionUrl]
+--         _        -> return ExitSuccess
+--       putStrLn \"Please paste the verification code: \"
+--       authcode <- getLine
+--       tokens   <- exchangeCode client authcode
+--       putStrLn$ \"Received access token: \"++show (accessToken tokens)
+--       tokens2  <- refreshTokens client tokens
+--       putStrLn$ \"As a test, refreshed token: \"++show (accessToken tokens2)
+--       writeFile file (show tokens2)
+--   accessTok <- fmap (accessToken . read) (readFile file)
+--   putStrLn \"As a test, list the users tables:\"
+--   response <- simpleHttp (\"https://www.googleapis.com/fusiontables/v1/tables?access_token=\"++accessTok)
+--   putStrLn$ BL.unpack response
+-- @
+
 -----------------------------------------------------------------------------
 
 
@@ -79,6 +133,7 @@ googleScopes =
   , ("Contacts", "https://www.google.com/m8/feeds/")
   , ("Content API for Shopping", "https://www.googleapis.com/auth/structuredcontent")
   , ("Chrome Web Store", "https://www.googleapis.com/auth/chromewebstore.readonly")
+  , ("Fusion Tables", "https://www.googleapis.com/auth/fusiontables")
   , ("Documents List", "https://docs.google.com/feeds/")
   , ("Google Drive", "https://www.googleapis.com/auth/drive")
   , ("Google Drive Files", "Files https://www.googleapis.com/auth/drive.file")
