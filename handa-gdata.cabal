@@ -77,7 +77,7 @@ library
                    directory -any, filepath -any, split -any, http-conduit <1.9,
                    json -any, old-locale -any, process -any, pureMD5 -any,
                    regex-posix -any, resourcet -any, time -any, unix -any,
-                   utf8-string -any, xml -any
+                   utf8-string -any, xml -any, random -any
     exposed-modules: Crypto.GnuPG Crypto.MD5 Network.Google
                      Network.Google.Bookmarks Network.Google.Books
                      Network.Google.Contacts Network.Google.OAuth2 Network.Google.Picasa
@@ -93,7 +93,7 @@ executable hgdata
                    directory -any, filepath -any, split -any, http-conduit <1.9,
                    json -any, old-locale -any, process -any, pureMD5 -any,
                    regex-posix -any, resourcet -any, time -any, unix -any,
-                   utf8-string -any, xml -any
+                   utf8-string -any, xml -any, random -any
     main-is: Main.hs
     buildable: True
     hs-source-dirs: src

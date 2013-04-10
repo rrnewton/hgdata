@@ -78,16 +78,25 @@ module Network.Google.OAuth2 (
 , exchangeCode
 , refreshTokens
 , validateTokens
+, getCachedTokens
 ) where
 
 
+import Control.Monad  (unless)
 import Data.ByteString.Char8 as BS8 (ByteString, pack)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.List (intercalate)
+import Data.Word (Word64)
 import Network.Google (makeHeaderName)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, responseBody, withManager)
 import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
+import System.Info    (os)
+import System.Process (rawSystem)
+import System.Exit    (ExitCode(..))
+import System.Directory (doesFileExist, doesDirectoryExist, getAppUserDataDirectory, createDirectory, renameFile)
+import System.FilePath ((</>),(<.>), splitExtension)
+import System.Random (randomIO)
 
 
 -- An OAuth 2.0 client for an installed application, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp>.
@@ -279,3 +288,61 @@ validateTokens tokens =
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" result
     return expiresIn'
+
+
+-- | Provide a hassle-free way to retrieve and refresh tokens from a users home
+-- directory, OR ask the user for permission.
+-- 
+-- The first time it is called, this may open a web-browser, and/or request the user
+-- enter data on the command line.  Subsequently, invocations on the same machine
+-- should not communicate with the user.
+-- 
+getCachedTokens :: OAuth2Client -- ^ The client is the "key" for token lookup.
+          -> IO OAuth2Tokens 
+getCachedTokens client = do 
+   cabalD <- getAppUserDataDirectory "cabal"
+   let tokenD = cabalD </> "googleAuthTokens" 
+       tokenF = tokenD </> (clientId client) <.> "token" 
+   d1       <- doesDirectoryExist cabalD     
+   unless d1 $ createDirectory cabalD -- Race.
+   d2       <- doesDirectoryExist tokenD 
+   unless d2 $ createDirectory tokenD -- Race.
+   f1       <- doesFileExist tokenF
+   if f1 then do 
+     toks <- fmap read (readFile tokenF)
+     -- Our policy is to always refresh:
+     toks2 <- refreshTokens client toks
+     atomicWriteFile tokenF (show toks2)
+     return toks2
+    else do 
+     toks <- askUser
+     atomicWriteFile tokenF (show toks)
+     return toks
+ where 
+   -- This is the part where we require user interaction.
+   askUser = do 
+     putStrLn$ "Load this URL: "++show permissionUrl
+     runBrowser 
+     putStrLn "Then please paste the verification code and press enter:\n$ "
+     authcode <- getLine
+     tokens   <- exchangeCode client authcode
+     putStrLn$ "Received access token: "++show (accessToken tokens)
+     return tokens
+
+   permissionUrl = formUrl client ["https://www.googleapis.com/auth/fusiontables"]
+
+   -- This is hackish and incomplete 
+   runBrowser = do 
+      case os of
+        "linux"  -> rawSystem "gnome-open" [permissionUrl]
+        "darwin" -> rawSystem "open"       [permissionUrl]
+        _        -> return ExitSuccess
+
+   atomicWriteFile file str = do 
+     suff <- randomIO :: IO Word64
+     let (root,ext) = splitExtension file
+         tmp = root ++ show suff <.> ext     
+     writeFile tmp str
+     -- RenameFile makes this atomic:
+     renameFile tmp file
+
