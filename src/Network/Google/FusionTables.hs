@@ -182,77 +182,8 @@ insertRows tok tid cols rows =
    singQuote x = "'"++x++"'"
 
 
+-- Implement a larger quantity of rows, but with the caveat that the number and order
+-- of columns must exactly match the schema of the fusion table on the server.
+bulkImportRows = error "implement bulkImportRows"
 
--- bulkImportRows = ...
-
-filterRows = error "filterRows"
-
--- type AlbumId = String
-
-
--- -- | List the albums, see <https://developers.google.com/fusiontable-web/docs/2.0/developers_guide_protocol#ListAlbums>.
--- listAlbums ::
---      AccessToken  -- ^ The OAuth 2.0 access token.
---   -> UserId       -- ^ The user ID for the photos.
---   -> IO Element   -- ^ The action returning the albums metadata in XML format.
--- listAlbums accessToken userId =
---   doRequest $ fusiontableFeedRequest accessToken userId Nothing
-
-
--- -- | Extract the album IDs from the list of albums.
--- extractAlbumIds ::
---      Element    -- ^ The root element of the list of albums.
---   -> [AlbumId]  -- ^ The list of album IDs.
--- extractAlbumIds root =
---   let
---     idQname = QName {qName = "id", qURI = Just "http://schemas.google.com/photos/2007", qPrefix = Just "gphoto"}
---     entries :: [Element]
---     entries = filterChildrenName ((== "entry") . qName) root
---     extractAlbumId :: Element -> Maybe String
---     extractAlbumId = liftM strContent . findChild idQname
---   in
---     mapMaybe extractAlbumId entries
-
-
--- -- | List the photos in albums, see <https://developers.google.com/fusiontable-web/docs/2.0/developers_guide_protocol#ListAlbumPhotos>.
--- listPhotos ::
---      AccessToken  -- ^ The OAuth 2.0 access token.
---   -> UserId       -- ^ The user ID for the photos.
---   -> [AlbumId]    -- ^ The album ID for the photos, or all photos if null.
---   -> IO Element   -- ^ The action returning the photo metadata in XML format.
--- listPhotos accessToken userId albumIds =
---   do
---     albumIds' <-
---       if null albumIds
---         then liftM extractAlbumIds $ listAlbums accessToken userId
---         else return albumIds
---     results <- mapM (listAlbumPhotos accessToken userId) albumIds'
---     let
---       root = head results
---     return $ root {elContent = concatMap elContent results}
-
-
--- -- | List the photos in an album, see <https://developers.google.com/fusiontable-web/docs/2.0/developers_guide_protocol#ListAlbumPhotos>.
--- listAlbumPhotos ::
---      AccessToken  -- ^ The OAuth 2.0 access token.
---   -> UserId       -- ^ The user ID for the photos.
---   -> AlbumId      -- ^ The album ID for the photos.
---   -> IO Element   -- ^ The action returning the contacts in XML format.
--- listAlbumPhotos accessToken userId albumId =
---   doRequest $ fusiontableFeedRequest accessToken userId (Just albumId)
-
-
--- -- | Make an HTTP request for a Fusiontable feed.
--- fusiontableFeedRequest ::
---      AccessToken    -- ^ The OAuth 2.0 access token.
---   -> UserId         -- ^ The user ID for the photos.
---   -> Maybe AlbumId  -- ^ The album ID for the photos.
---   -> Request m      -- ^ The request.
--- fusiontableFeedRequest accessToken userId albumId =
---   makeRequest accessToken fusiontableApi "GET"
---     (
---       fusiontableHost
---     , "/data/feed/api/user/" ++ userId ++ maybe "" ("/albumid/" ++) albumId
---     )
-
-
+filterRows = error "implement filterRows"
