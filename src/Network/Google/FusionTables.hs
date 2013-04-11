@@ -19,9 +19,10 @@
 
 module Network.Google.FusionTables (
   -- * Types
-    TableId, TableMetadata(..), ColumnMetadata(..)
+    TableId, TableMetadata(..), ColumnMetadata(..), CellType(..)
     
   -- * Raw API routines, returning raw JSON
+  , createTable
   , listTables, listColumns
 --  , sqlQuery
 
@@ -37,19 +38,22 @@ import           Control.Monad (liftM)
 import           Data.Maybe (mapMaybe)
 import           Data.List as L
 import qualified Data.ByteString.Char8 as B
-import           Network.Google (AccessToken, ProjectId, doRequest, makeRequest)
-import           Network.HTTP.Conduit (Request(..))
+import qualified Data.ByteString.Lazy.Char8 as BL
+import           Network.Google (AccessToken, ProjectId, doRequest, makeRequest, appendBody)
+import           Network.HTTP.Conduit (Request(..), RequestBody(..),parseUrl)
 import qualified Network.HTTP as H
 import           Text.XML.Light (Element(elContent), QName(..), filterChildrenName, findChild, strContent)
 
 -- TODO: Ideally this dependency wouldn't exist here and the user could select their
 -- own JSON parsing lib (e.g. Aeson).
-import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error), decode, valFromObj)
+import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error),
+                            decode, valFromObj, toJSObject, toJSString)
+import           Text.JSON.Pretty (pp_value)
 
 -- For easy pretty printing:
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
-import           Text.PrettyPrint.HughesPJ (text)
-
+import           Text.PrettyPrint.HughesPJ (text, render)
+import           Text.Printf (printf)
 --------------------------------------------------------------------------------
 -- Haskell Types corresponding to JSON responses
 
@@ -91,10 +95,54 @@ fusiontableHost = "www.googleapis.com"
 
 -- | The API version used here.
 fusiontableApi :: (String, String)
-fusiontableApi = ("Gdata-version", "2")
--- RRN: Is there documentation for what this means?  It seems like "Gdata" might be
--- deprecated with the new google APIs?
+-- FIXME: This is meaningless because we're using the new discovery-based API, *NOT*
+-- the old GData APIs.
+fusiontableApi = ("Gdata-version", "999")
 
+-- | Create an (exportable) table with a given name and list of columns.
+createTable :: AccessToken -> String -> [(FTString,CellType)] -> IO TableId
+createTable tok name cols =
+  do putStrLn$ "CREATE TABLE REQUEST" ++show req
+
+     let raw = "https://www.googleapis.com/fusiontables/v1/tables?access_token="++
+               H.urlEncodeVars [("access_token", B.unpack tok)]
+     putStrLn$ "RAW request: "++raw  
+
+     initReq <- parseUrl "http://www.example.com/path"
+     let req = initReq
+               { method = B.pack "POST"
+               , requestBody = RequestBodyBS (B.pack json)
+               }
+
+--  print =<< C.curlPost postStr []
+
+     doRequest req
+ where
+   req = appendBody (BL.pack json)
+         (makeRequest tok fusiontableApi "POST"
+           (fusiontableHost, "fusiontables/v1/tables" ))
+   json :: String
+--    kind: \"fusiontables#table\"
+--   json = printf "{ name: %s, isExportable: true, columns: %s }" nameJS coljson
+   -- nameJS  = render$ pp_value$ JSString$ toJSString$ name
+   -- coljson = render$ pp_value$ JSArray (map fn cols)
+
+   json = render$ pp_value$ JSObject$ toJSObject$
+          [ ("name",str name)
+          , ("isExportable", JSBool True)
+          , ("columns", colsJS) ]
+   colsJS = JSArray (map fn cols)
+   fn (colName, colTy) = JSObject$ 
+     toJSObject [ ("name", str colName)
+                , ("kind", str "fusiontables#column")  
+                , ("type", str$ show colTy) ]
+   str = JSString . toJSString
+
+
+-- | Designed to mirror the types listed here:
+--   <https://developers.google.com/fusiontables/docs/v1/reference/column>
+data CellType = NUMBER | STRING | LOCATION | DATETIME
+  deriving (Show,Eq,Ord,Read)
 
 -- | List all tables belonging to a user.
 --   See <https://developers.google.com/fusiontables/docs/v1/reference/table/list>.
@@ -102,7 +150,7 @@ listTables :: AccessToken -- ^ The OAuth 2.0 access token.
            -> IO JSValue
 listTables accessToken = doRequest req
  where
-   req = makeRequest accessToken fusiontableApi "GET"
+   req  = makeRequest accessToken fusiontableApi "GET"
                      ( fusiontableHost, "fusiontables/v1/tables" )
 
 
@@ -161,10 +209,9 @@ insertRows tok tid cols rows =
      putStrLn$ "VALS before encode "++ show vals
      doRequest req
  where
-   req = (makeRequest tok fusiontableApi "GET"
+   req = (makeRequest tok fusiontableApi "POST"
            (fusiontableHost, "fusiontables/v1/query" ))
            {
-             method = B.pack "POST",
              queryString = B.pack$ H.urlEncodeVars [("sql",query)]
            }
    query = concat $ L.intersperse ";\n" $
@@ -186,4 +233,5 @@ insertRows tok tid cols rows =
 -- of columns must exactly match the schema of the fusion table on the server.
 bulkImportRows = error "implement bulkImportRows"
 
+-- TODO: provide some basic select functionality
 filterRows = error "implement filterRows"
