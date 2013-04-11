@@ -29,25 +29,26 @@ module Network.Google.FusionTables (
   , parseTables, parseColumns
     
   -- * Higher level interface to common SQL queries    
---  , insertRows, filterRows  
+  , insertRows
+    -- , filterRows  
 ) where
 
-import Control.Monad (liftM)
-import Data.Maybe (mapMaybe)
--- import qualified Data.ByteString.Char8 as B
-import Network.Google (AccessToken, ProjectId, doRequest, makeRequest)
-import Network.HTTP.Conduit (Request)
-import Text.XML.Light (Element(elContent), QName(..), filterChildrenName, findChild, strContent)
+import           Control.Monad (liftM)
+import           Data.Maybe (mapMaybe)
+import           Data.List as L
+import qualified Data.ByteString.Char8 as B
+import           Network.Google (AccessToken, ProjectId, doRequest, makeRequest)
+import           Network.HTTP.Conduit (Request(..))
+import qualified Network.HTTP as H
+import           Text.XML.Light (Element(elContent), QName(..), filterChildrenName, findChild, strContent)
 
 -- TODO: Ideally this dependency wouldn't exist here and the user could select their
 -- own JSON parsing lib (e.g. Aeson).
-import Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error), decode, valFromObj)
+import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error), decode, valFromObj)
 
 -- For easy pretty printing:
-import Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
-import Text.PrettyPrint.HughesPJ (text)
-
-import Debug.Trace
+import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
+import           Text.PrettyPrint.HughesPJ (text)
 
 --------------------------------------------------------------------------------
 -- Haskell Types corresponding to JSON responses
@@ -130,7 +131,7 @@ parseColumn oth = Error$ "parseColumn: Expected JSObject, got "++show oth
 -- | List the columns within a specific table.
 --   See <https://developers.google.com/fusiontables/docs/v1/reference/column/list>.
 listColumns :: AccessToken -- ^ The OAuth 2.0 access token.
-            -> TableId     -- ^ 
+            -> TableId     -- ^ which table
             -> IO JSValue
 listColumns accessToken tid = doRequest req
  where
@@ -143,9 +144,46 @@ parseColumns (JSObject ob) = do
   JSArray cols <- valFromObj "items" ob
   mapM parseColumn cols
 
+--------------------------------------------------------------------------------
+
 sqlQuery = error "sqlQuery"
 
-insertRows = error "insertRows"
+-- | Insert one or more rows into a table.  Rows are represented as lists of strings.
+-- The columns being written are passed in as a separate list.  The length of all
+-- rows must match eachother and must match the list of column names.
+-- 
+insertRows :: AccessToken -> TableId
+              -> [FTString]   -- ^ Which columns to write.
+              -> [[FTString]] -- ^ Rows 
+              -> IO ()
+insertRows tok tid cols rows =
+  do putStrLn$"DOING REQUEST "++show req
+     putStrLn$ "VALS before encode "++ show vals
+     doRequest req
+ where
+   req = (makeRequest tok fusiontableApi "GET"
+           (fusiontableHost, "fusiontables/v1/query" ))
+           {
+             method = B.pack "POST",
+             queryString = B.pack$ H.urlEncodeVars [("sql",query)]
+           }
+   query = concat $ L.intersperse ";\n" $
+           map (("INSERT INTO "++tid++" "++ colstr ++" VALUES ")++) vals
+   numcols = length cols
+   colstr = parens$ concat$ L.intersperse ", " cols
+   vals = map fn rows
+   fn row =
+     if length row == numcols
+      then parens$ concat$ L.intersperse ", " $ map singQuote row
+      else error$ "insertRows: got a row with an incorrect number of arguments, expected "
+                  ++ show numcols ++": "++ show row
+
+   parens s = "(" ++ s ++ ")"
+   singQuote x = "'"++x++"'"
+
+
+
+-- bulkImportRows = ...
 
 filterRows = error "filterRows"
 
