@@ -54,6 +54,7 @@ import           Text.JSON.Pretty (pp_value)
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 import           Text.PrettyPrint.HughesPJ (text, render)
 import           Text.Printf (printf)
+
 --------------------------------------------------------------------------------
 -- Haskell Types corresponding to JSON responses
 
@@ -229,9 +230,23 @@ insertRows tok tid cols rows =
    singQuote x = "'"++x++"'"
 
 
--- Implement a larger quantity of rows, but with the caveat that the number and order
+-- | Implement a larger quantity of rows, but with the caveat that the number and order
 -- of columns must exactly match the schema of the fusion table on the server.
-bulkImportRows = error "implement bulkImportRows"
+-- `bulkImportRows` will perform a listing of the columns to verify this before uploading.
+bulkImportRows :: AccessToken -> TableId
+              -> [FTString]   -- ^ Which columns to write.
+              -> [[FTString]] -- ^ Rows 
+              -> IO ()
+bulkImportRows tok tid cols rows = do 
+  -- listColumns
+
+  let csv = "38"
+      req = appendBody (BL.pack csv)
+         (makeRequest tok fusiontableApi "POST"
+           (fusiontableHost, "fusiontables/v1/tables/"++tid++"/import" ))
+  
+  error "implement bulkImportRows"
+
 
 -- TODO: provide some basic select functionality
 filterRows = error "implement filterRows"

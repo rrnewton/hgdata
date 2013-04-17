@@ -311,13 +311,18 @@ getCachedTokens client = do
      toks <- fmap read (readFile tokenF)
      -- Our policy is to *always* refresh:
      toks2 <- refreshTokens client toks
-     atomicWriteFile tokenF (show toks2)
-     return toks2
+     toks3 <- timestamp toks2
+     atomicWriteFile tokenF (show toks3)
+     return toks3
     else do 
      toks <- askUser
      atomicWriteFile tokenF (show toks)
      return toks
- where 
+ where
+   -- TODO: Convert relative time to absolute UTF time for the tokens:
+   timestamp toks = do
+     return toks
+   
    -- This is the part where we require user interaction:
    askUser = do 
      putStrLn$ "Load this URL: "++show permissionUrl
