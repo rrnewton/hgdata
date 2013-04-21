@@ -101,34 +101,17 @@ fusiontableApi :: (String, String)
 fusiontableApi = ("Gdata-version", "999")
 
 -- | Create an (exportable) table with a given name and list of columns.
-createTable :: AccessToken -> String -> [(FTString,CellType)] -> IO TableId
+createTable :: AccessToken -> String -> [(FTString,CellType)] -> IO TableMetadata
 createTable tok name cols =
-  do putStrLn$ "CREATE TABLE REQUEST" ++show req
-
-     let raw = "https://www.googleapis.com/fusiontables/v1/tables?access_token="++
-               H.urlEncodeVars [("access_token", B.unpack tok)]
-     putStrLn$ "RAW request: "++raw  
-
-     initReq <- parseUrl "http://www.example.com/path"
-     let req = initReq
-               { method = B.pack "POST"
-               , requestBody = RequestBodyBS (B.pack json)
-               }
-
---  print =<< C.curlPost postStr []
-
-     doRequest req
+  do response <- doRequest req
+     let Ok final = parseTable response
+     return final     
  where
    req = appendHeaders [("Content-Type", "application/json")] $
           appendBody (BL.pack json)
           (makeRequest tok fusiontableApi "POST"
             (fusiontableHost, "fusiontables/v1/tables" ))
    json :: String
---    kind: \"fusiontables#table\"
---   json = printf "{ name: %s, isExportable: true, columns: %s }" nameJS coljson
-   -- nameJS  = render$ pp_value$ JSString$ toJSString$ name
-   -- coljson = render$ pp_value$ JSArray (map fn cols)
-
    json = render$ pp_value$ JSObject$ toJSObject$
           [ ("name",str name)
           , ("isExportable", JSBool True)
@@ -160,15 +143,15 @@ listTables accessToken = doRequest req
 parseTables :: JSValue -> Result [TableMetadata]
 parseTables (JSObject ob) = do
   JSArray allTables <- valFromObj "items" ob
-  mapM parseTab allTables
- where
-   parseTab :: JSValue -> Result TableMetadata
-   parseTab (JSObject ob) = do
-     tab_name     <- valFromObj "name"     ob
-     tab_tableId  <- valFromObj "tableId" ob
-     tab_columns  <- mapM parseColumn =<< valFromObj "columns" ob
-     return TableMetadata {tab_name, tab_tableId, tab_columns}
-   parseTab oth = Error$ "parseTable: Expected JSObject, got "++show oth
+  mapM parseTable allTables
+
+parseTable :: JSValue -> Result TableMetadata
+parseTable (JSObject ob) = do
+  tab_name     <- valFromObj "name"     ob
+  tab_tableId  <- valFromObj "tableId" ob
+  tab_columns  <- mapM parseColumn =<< valFromObj "columns" ob
+  return TableMetadata {tab_name, tab_tableId, tab_columns}
+parseTable oth = Error$ "parseTable: Expected JSObject, got "++show oth
    
 parseColumn :: JSValue -> Result ColumnMetadata
 parseColumn (JSObject ob) = do
@@ -206,10 +189,7 @@ insertRows :: AccessToken -> TableId
               -> [FTString]   -- ^ Which columns to write.
               -> [[FTString]] -- ^ Rows 
               -> IO ()
-insertRows tok tid cols rows =
-  do putStrLn$"DOING REQUEST "++show req
-     putStrLn$ "VALS before encode "++ show vals
-     doRequest req
+insertRows tok tid cols rows = doRequest req     
  where
    req = (makeRequest tok fusiontableApi "POST"
            (fusiontableHost, "fusiontables/v1/query" ))
