@@ -21,17 +21,15 @@ module Network.Google.FusionTables (
   -- * Types
     TableId, TableMetadata(..), ColumnMetadata(..), CellType(..)
     
-  -- * Raw API routines, returning raw JSON
+  -- * One-to-one wrappers around API routines, with parsing of JSON results
   , createTable
   , listTables, listColumns
 --  , sqlQuery
-
-  -- * Parsing result of raw API routines
-  , parseTables, parseColumns
     
   -- * Higher level interface to common SQL queries    
   , insertRows
-    -- , filterRows  
+    -- , filterRows
+    -- bulkImportRows
 ) where
 
 import           Control.Monad (liftM)
@@ -132,8 +130,12 @@ data CellType = NUMBER | STRING | LOCATION | DATETIME
 -- | List all tables belonging to a user.
 --   See <https://developers.google.com/fusiontables/docs/v1/reference/table/list>.
 listTables :: AccessToken -- ^ The OAuth 2.0 access token.
-           -> IO JSValue
-listTables accessToken = doRequest req
+           -> IO [TableMetadata]
+listTables accessToken =
+  do resp <- doRequest req
+     case parseTables resp of
+       Ok x -> return x
+       Error err -> error$ "listTables: failed to parse JSON response:\n"++err
  where
    req  = makeRequest accessToken fusiontableApi "GET"
                      ( fusiontableHost, "fusiontables/v1/tables" )
@@ -165,8 +167,12 @@ parseColumn oth = Error$ "parseColumn: Expected JSObject, got "++show oth
 --   See <https://developers.google.com/fusiontables/docs/v1/reference/column/list>.
 listColumns :: AccessToken -- ^ The OAuth 2.0 access token.
             -> TableId     -- ^ which table
-            -> IO JSValue
-listColumns accessToken tid = doRequest req
+            -> IO [ColumnMetadata]
+listColumns accessToken tid = 
+  do resp <- doRequest req
+     case parseColumns resp of
+       Ok x -> return x
+       Error err -> error$ "listColumns: failed to parse JSON response:\n"++err
  where
    req = makeRequest accessToken fusiontableApi "GET"
                      ( fusiontableHost, "fusiontables/v1/tables/"++tid++"/columns" )
