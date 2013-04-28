@@ -1,11 +1,11 @@
 name: handa-gdata
-version: 0.5.3
+version: 0.6.1
 cabal-version: >=1.6
 build-type: Simple
 license: MIT
 license-file: LICENSE
-copyright: (c) 2012-13 Brian W Bush
-maintainer: Brian W Bush <b.w.bush@acm.org>
+copyright: (c) 2012-13 Brian W Bush, Ryan Newton
+maintainer: Brian W Bush <b.w.bush@acm.org>, Ryan Newton <rrnewton@indiana.edu>
 stability: Stable
 homepage: http://code.google.com/p/hgdata
 package-url: http://code.google.com/p/hgdata/downloads/list
@@ -42,6 +42,8 @@ description: This project provides a Haskell library and command-line interface 
              .
              * DELETE Object
              .
+             Operations in the Google Fusion Tables API are also supported.
+             .
              For the unofficial Google Bookmarks API, the following operations are supported:
              .
              * List bookmarks
@@ -64,7 +66,7 @@ description: This project provides a Haskell library and command-line interface 
              .
              * Listing photos in an album
 category: Network
-author: Brian W Bush <b.w.bush@acm.org>
+author: Brian W Bush <b.w.bush@acm.org>, Ryan Newton <rrnewton@indiana.edu>
 data-dir: ""
  
 source-repository head
@@ -74,7 +76,7 @@ source-repository head
 library
     build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, split -any, http-conduit <1.9,
+                   directory -any, filepath -any, split -any, http-conduit,
                    json -any, old-locale -any, process -any, pureMD5 -any,
                    regex-posix -any, resourcet -any, time -any, unix -any,
                    utf8-string -any, xml -any, random -any, pretty -any, GenericPretty -any
@@ -91,7 +93,7 @@ library
 executable hgdata
     build-depends: HTTP -any, base <6, base64-bytestring -any,
                    binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, split -any, http-conduit <1.9,
+                   directory -any, filepath -any, split -any, http-conduit,
                    json -any, old-locale -any, process -any, pureMD5 -any,
                    regex-posix -any, resourcet -any, time -any, unix -any,
                    utf8-string -any, xml -any, random -any, pretty -any, GenericPretty -any

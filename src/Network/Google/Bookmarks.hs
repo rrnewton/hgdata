@@ -30,7 +30,7 @@ import Data.ByteString.Lazy.UTF8 (fromString, toString)
 import Data.Maybe (fromJust)
 import Data.Time.Clock (getCurrentTime)
 import Network.Google (appendHeaders)
-import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, insertCookiesIntoRequest, parseUrl, updateCookieJar, withManager)
+import Network.HTTP.Conduit (CookieJar, Request(..), RequestBody(..), Response(..), def, httpLbs, parseUrl, withManager)
 import Text.XML.Light (Element(..), QName(..), blank_name, filterElement, findAttr, parseXMLDoc)
 
 
@@ -60,12 +60,10 @@ listBookmarks email password smsToken =
       responseGet1 <- httpLbs requestGet1 manager
       let
         encode = LBS8.unpack . fromString
-        cookieInserter cookieJar request = fst $ insertCookiesIntoRequest request cookieJar now
         responseXml = fromJust . parseXMLDoc . toString . responseBody
         bodyGet1 = responseXml responseGet1
-        (cookieJarGet1, _) = updateCookieJar responseGet1 requestGet1 now def
+        cookieJarGet1 = responseCookieJar responseGet1
         requestPost1 =
-          cookieInserter cookieJarGet1 $
           (accountsPostRequest "/ServiceLoginAuth") {
             requestBody = RequestBodyBS $ BS8.pack $
             "continue=" ++ listingUrl
@@ -76,14 +74,14 @@ listBookmarks email password smsToken =
             ++ "&Email=" ++ encode email
             ++ "&Passwd=" ++ encode password
             ++ "&PersistentCookie=yes"
+          , cookieJar = Just cookieJarGet1
           , redirectCount = 0
-          , checkStatus = \_ _ -> Nothing
+          , checkStatus = \_ _ _ -> Nothing
           }
       responsePost1 <- httpLbs requestPost1 manager
       let
-        (cookieJarPost1, _) = updateCookieJar responsePost1 requestPost1 now cookieJarGet1
+        cookieJarPost1 = responseCookieJar responsePost1
         requestPost2 =
-          cookieInserter cookieJarPost1 $
           (accountsPostRequest "/SmsAuth") {
             queryString = BS8.pack $ "?continue=" ++ listingUrl ++ "&service=bookmarks"
           , requestBody = RequestBodyBS $ BS8.pack $
@@ -92,15 +90,15 @@ listBookmarks email password smsToken =
             ++ "&exp=smsauthnojs"
             ++ "&smsUserPin=" ++ encode smsToken
             ++ "&PersistentCookie=yes"
+          , cookieJar = Just cookieJarPost1
           , redirectCount = 0
-          , checkStatus = \_ _ -> Nothing
+          , checkStatus = \_ _ _ -> Nothing
           }
       responsePost2 <- httpLbs requestPost2 manager
       let
         bodyPost2 = responseXml responsePost2
-        (cookieJarPost2, _) = updateCookieJar responsePost2 requestPost2 now cookieJarPost1
+        cookieJarPost2 = responseCookieJar responsePost2
         requestPost3 =
-          cookieInserter cookieJarPost2 $
           (accountsPostRequest "/ServiceLoginAuth") {
             queryString = BS8.pack $ "?continue=" ++ listingUrl
           , requestBody = RequestBodyBS $ BS8.pack $
@@ -108,6 +106,7 @@ listBookmarks email password smsToken =
             ++ "&smsToken=" ++ extractValue "smsToken" bodyPost2
             ++ "&GALX=" ++ extractValue "GALX" bodyGet1
             ++ "&bgresponse=js_disabled"
+          , cookieJar = Just cookieJarPost2
           }
       responsePost3 <- httpLbs requestPost3 manager
       return $ responseXml responsePost3
