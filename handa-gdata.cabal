@@ -42,6 +42,8 @@ description: This project provides a Haskell library and command-line interface 
              .
              * DELETE Object
              .
+             Operations in the Google Fusion Tables API are also supported.
+             .
              For the unofficial Google Bookmarks API, the following operations are supported:
              .
              * List bookmarks
