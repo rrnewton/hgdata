@@ -301,7 +301,7 @@ getCachedTokens :: OAuth2Client -- ^ The client is the \"key\" for token lookup.
 getCachedTokens client = do 
    cabalD <- getAppUserDataDirectory "cabal"
    let tokenD = cabalD </> "googleAuthTokens" 
-       tokenF = tokenD </> (clientId client) <.> "token" 
+       tokenF = tokenD </> clientId client <.> "token" 
    d1       <- doesDirectoryExist cabalD     
    unless d1 $ createDirectory cabalD -- Race.
    d2       <- doesDirectoryExist tokenD 
@@ -331,7 +331,7 @@ getCachedTokens client = do
    permissionUrl = formUrl client ["https://www.googleapis.com/auth/fusiontables"]
 
    -- This is hackish and incomplete 
-   runBrowser = do 
+   runBrowser =
       case os of
         "linux"  -> rawSystem "gnome-open" [permissionUrl]
         "darwin" -> rawSystem "open"       [permissionUrl]
