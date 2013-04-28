@@ -10,6 +10,59 @@
 --
 -- | Functions for OAuth 2.0 authentication for Google APIs.
 --
+-- If you are new to Google web API's, bear in mind that there are /three/ different
+-- methods for accessing APIs (installed applications, web apps, service-to-service),
+-- and this library is most useful for \"installed applications\".
+--
+-- Installed applications need the user to grant permission in a browser at least
+-- once (see `formUrl`).  However, while the resulting `accessToken` expires quickly,
+-- the `refreshToken` can be used indefinitely for retrieving new access tokens.
+-- Thus this approach can be suitable for long running or periodic programs that
+-- access Google data.
+--
+-- Below is a quick-start program which will list any Google Fusion tables the user
+-- possesses.  It requires the client ID and secret retrieved from 
+-- <https://code.google.com/apis/console>.
+--
+-- @
+-- import Control.Monad (unless)
+-- import System.Info (os)
+-- import System.Process (system, rawSystem)
+-- import System.Exit    (ExitCode(..))
+-- import System.Directory (doesFileExist)
+-- import Network.Google.OAuth2 (formUrl, exchangeCode, refreshTokens,
+--                               OAuth2Client(..), OAuth2Tokens(..))
+-- import Network.Google (makeRequest, doRequest)
+-- import Network.HTTP.Conduit (simpleHttp)
+-- --
+-- cid    = \"INSTALLED_APP_CLIENT_ID\"
+-- secret = \"INSTALLED_APP_SECRET_HERE\"
+-- file   = \"./tokens.txt\"
+-- --  
+-- main = do
+--   -- Ask for permission to read/write your fusion tables:
+--   let client = OAuth2Client { clientId = cid, clientSecret = secret }
+--       permissionUrl = formUrl client [\"https://www.googleapis.com/auth/fusiontables\"]
+--   b <- doesFileExist file
+--   unless b $ do 
+--       putStrLn$ \"Load this URL: \"++show permissionUrl
+--       case os of
+--         \"linux\"  -> rawSystem \"gnome-open\" [permissionUrl]
+--         \"darwin\" -> rawSystem \"open\"       [permissionUrl]
+--         _        -> return ExitSuccess
+--       putStrLn \"Please paste the verification code: \"
+--       authcode <- getLine
+--       tokens   <- exchangeCode client authcode
+--       putStrLn$ \"Received access token: \"++show (accessToken tokens)
+--       tokens2  <- refreshTokens client tokens
+--       putStrLn$ \"As a test, refreshed token: \"++show (accessToken tokens2)
+--       writeFile file (show tokens2)
+--   accessTok <- fmap (accessToken . read) (readFile file)
+--   putStrLn \"As a test, list the users tables:\"
+--   response <- simpleHttp (\"https://www.googleapis.com/fusiontables/v1/tables?access_token=\"++accessTok)
+--   putStrLn$ BL.unpack response
+-- @
+
 -----------------------------------------------------------------------------
 
 
@@ -24,16 +77,25 @@ module Network.Google.OAuth2 (
 , exchangeCode
 , refreshTokens
 , validateTokens
+, getCachedTokens
 ) where
 
 
+import Control.Monad  (unless)
 import Data.ByteString.Char8 as BS8 (ByteString, pack)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.List (intercalate)
+import Data.Word (Word64)
 import Network.Google (makeHeaderName)
 import Network.HTTP.Base (urlEncode)
 import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), def, httpLbs, responseBody, withManager)
 import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
+import System.Info    (os)
+import System.Process (rawSystem)
+import System.Exit    (ExitCode(..))
+import System.Directory (doesFileExist, doesDirectoryExist, getAppUserDataDirectory, createDirectory, renameFile)
+import System.FilePath ((</>),(<.>), splitExtension)
+import System.Random (randomIO)
 
 
 -- An OAuth 2.0 client for an installed application, see <https://developers.google.com/accounts/docs/OAuth2InstalledApp>.
@@ -79,6 +141,7 @@ googleScopes =
   , ("Contacts", "https://www.google.com/m8/feeds/")
   , ("Content API for Shopping", "https://www.googleapis.com/auth/structuredcontent")
   , ("Chrome Web Store", "https://www.googleapis.com/auth/chromewebstore.readonly")
+  , ("Fusion Tables", "https://www.googleapis.com/auth/fusiontables")
   , ("Documents List", "https://docs.google.com/feeds/")
   , ("Google Drive", "https://www.googleapis.com/auth/drive")
   , ("Google Drive Files", "Files https://www.googleapis.com/auth/drive.file")
@@ -224,3 +287,61 @@ validateTokens tokens =
       expiresIn' :: Rational
       (Ok (JSRational _ expiresIn')) = valFromObj "expires_in" result
     return expiresIn'
+
+
+-- | Provide a hassle-free way to retrieve and refresh tokens from a users home
+-- directory, OR ask the user for permission.
+-- 
+-- The first time it is called, this may open a web-browser, and/or request the user
+-- enter data on the command line.  Subsequently, invocations on the same machine
+-- should not communicate with the user.
+-- 
+getCachedTokens :: OAuth2Client -- ^ The client is the \"key\" for token lookup.
+                -> IO OAuth2Tokens 
+getCachedTokens client = do 
+   cabalD <- getAppUserDataDirectory "cabal"
+   let tokenD = cabalD </> "googleAuthTokens" 
+       tokenF = tokenD </> (clientId client) <.> "token" 
+   d1       <- doesDirectoryExist cabalD     
+   unless d1 $ createDirectory cabalD -- Race.
+   d2       <- doesDirectoryExist tokenD 
+   unless d2 $ createDirectory tokenD -- Race.
+   f1       <- doesFileExist tokenF
+   if f1 then do 
+     toks <- fmap read (readFile tokenF)
+     -- Our policy is to *always* refresh:
+     toks2 <- refreshTokens client toks
+     atomicWriteFile tokenF (show toks2)
+     return toks2
+    else do 
+     toks <- askUser
+     atomicWriteFile tokenF (show toks)
+     return toks
+ where 
+   -- This is the part where we require user interaction:
+   askUser = do 
+     putStrLn$ "Load this URL: "++show permissionUrl
+     runBrowser 
+     putStrLn "Then please paste the verification code and press enter:\n$ "
+     authcode <- getLine
+     tokens   <- exchangeCode client authcode
+     putStrLn$ "Received access token: "++show (accessToken tokens)
+     return tokens
+
+   permissionUrl = formUrl client ["https://www.googleapis.com/auth/fusiontables"]
+
+   -- This is hackish and incomplete 
+   runBrowser = do 
+      case os of
+        "linux"  -> rawSystem "gnome-open" [permissionUrl]
+        "darwin" -> rawSystem "open"       [permissionUrl]
+        _        -> return ExitSuccess
+
+   atomicWriteFile file str = do 
+     suff <- randomIO :: IO Word64
+     let (root,ext) = splitExtension file
+         tmp = root ++ show suff <.> ext     
+     writeFile tmp str
+     -- RenameFile makes this atomic:
+     renameFile tmp file
+

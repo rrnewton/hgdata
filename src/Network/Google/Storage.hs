@@ -48,7 +48,7 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.UTF8 (fromString)
 import Data.ByteString.Lazy (ByteString)
 import Data.List (intercalate, stripPrefix)
-import Data.List.Util (separate)
+import Data.List.Split (splitOn)
 import Data.Maybe (fromJust, isNothing, maybe)
 import Network.Google (AccessToken, ProjectId, appendBody, appendHeaders, appendQuery, doManagedRequest, doRequest, makeProjectRequest)
 import Network.HTTP.Base (urlEncode)
@@ -119,7 +119,7 @@ makePath ::
      String  -- ^ The unencoded path.
   -> String  -- ^ The URL-encoded path.
 -- TODO: Review whether the sequence of UTF-8 encoding and URL encoding is correct.  This works correctly with tests of exotic unicode sequences, however.
-makePath = ('/' :) . intercalate "/" . map (urlEncode . unpack . fromString) . separate '/'
+makePath = ('/' :) . intercalate "/" . map (urlEncode . unpack . fromString) . splitOn "/"
 
 
 -- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.
