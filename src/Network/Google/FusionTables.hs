@@ -19,36 +19,39 @@
 
 module Network.Google.FusionTables (
   -- * Types
-    TableId, TableMetadata(..), ColumnMetadata(..)
+    TableId, TableMetadata(..), ColumnMetadata(..), CellType(..)
     
-  -- * Raw API routines, returning raw JSON
+  -- * One-to-one wrappers around API routines, with parsing of JSON results
+  , createTable
   , listTables, listColumns
 --  , sqlQuery
-
-  -- * Parsing result of raw API routines
-  , parseTables, parseColumns
     
   -- * Higher level interface to common SQL queries    
   , insertRows
-    -- , filterRows  
+    -- , filterRows
+    -- bulkImportRows
 ) where
 
 import           Control.Monad (liftM)
 import           Data.Maybe (mapMaybe)
 import           Data.List as L
 import qualified Data.ByteString.Char8 as B
-import           Network.Google (AccessToken, ProjectId, doRequest, makeRequest)
-import           Network.HTTP.Conduit (Request(..))
+import qualified Data.ByteString.Lazy.Char8 as BL
+import           Network.Google (AccessToken, ProjectId, doRequest, makeRequest, appendBody, appendHeaders)
+import           Network.HTTP.Conduit (Request(..), RequestBody(..),parseUrl)
 import qualified Network.HTTP as H
 import           Text.XML.Light (Element(elContent), QName(..), filterChildrenName, findChild, strContent)
 
 -- TODO: Ideally this dependency wouldn't exist here and the user could select their
 -- own JSON parsing lib (e.g. Aeson).
-import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error), decode, valFromObj)
+import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error),
+                            decode, valFromObj, toJSObject, toJSString)
+import           Text.JSON.Pretty (pp_value)
 
 -- For easy pretty printing:
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
-import           Text.PrettyPrint.HughesPJ (text)
+import           Text.PrettyPrint.HughesPJ (text, render)
+import           Text.Printf (printf)
 
 --------------------------------------------------------------------------------
 -- Haskell Types corresponding to JSON responses
@@ -91,18 +94,50 @@ fusiontableHost = "www.googleapis.com"
 
 -- | The API version used here.
 fusiontableApi :: (String, String)
-fusiontableApi = ("Gdata-version", "2")
--- RRN: Is there documentation for what this means?  It seems like "Gdata" might be
--- deprecated with the new google APIs?
+-- FIXME: This is meaningless because we're using the new discovery-based API, *NOT*
+-- the old GData APIs.
+fusiontableApi = ("Gdata-version", "999")
 
+-- | Create an (exportable) table with a given name and list of columns.
+createTable :: AccessToken -> String -> [(FTString,CellType)] -> IO TableMetadata
+createTable tok name cols =
+  do response <- doRequest req
+     let Ok final = parseTable response
+     return final     
+ where
+   req = appendHeaders [("Content-Type", "application/json")] $
+          appendBody (BL.pack json)
+          (makeRequest tok fusiontableApi "POST"
+            (fusiontableHost, "fusiontables/v1/tables" ))
+   json :: String
+   json = render$ pp_value$ JSObject$ toJSObject$
+          [ ("name",str name)
+          , ("isExportable", JSBool True)
+          , ("columns", colsJS) ]
+   colsJS = JSArray (map fn cols)
+   fn (colName, colTy) = JSObject$ 
+     toJSObject [ ("name", str colName)
+                , ("kind", str "fusiontables#column")  
+                , ("type", str$ show colTy) ]
+   str = JSString . toJSString
+
+
+-- | Designed to mirror the types listed here:
+--   <https://developers.google.com/fusiontables/docs/v1/reference/column>
+data CellType = NUMBER | STRING | LOCATION | DATETIME
+  deriving (Show,Eq,Ord,Read)
 
 -- | List all tables belonging to a user.
 --   See <https://developers.google.com/fusiontables/docs/v1/reference/table/list>.
 listTables :: AccessToken -- ^ The OAuth 2.0 access token.
-           -> IO JSValue
-listTables accessToken = doRequest req
+           -> IO [TableMetadata]
+listTables accessToken =
+  do resp <- doRequest req
+     case parseTables resp of
+       Ok x -> return x
+       Error err -> error$ "listTables: failed to parse JSON response:\n"++err
  where
-   req = makeRequest accessToken fusiontableApi "GET"
+   req  = makeRequest accessToken fusiontableApi "GET"
                      ( fusiontableHost, "fusiontables/v1/tables" )
 
 
@@ -110,15 +145,15 @@ listTables accessToken = doRequest req
 parseTables :: JSValue -> Result [TableMetadata]
 parseTables (JSObject ob) = do
   JSArray allTables <- valFromObj "items" ob
-  mapM parseTab allTables
- where
-   parseTab :: JSValue -> Result TableMetadata
-   parseTab (JSObject ob) = do
-     tab_name     <- valFromObj "name"     ob
-     tab_tableId  <- valFromObj "tableId" ob
-     tab_columns  <- mapM parseColumn =<< valFromObj "columns" ob
-     return TableMetadata {tab_name, tab_tableId, tab_columns}
-   parseTab oth = Error$ "parseTable: Expected JSObject, got "++show oth
+  mapM parseTable allTables
+
+parseTable :: JSValue -> Result TableMetadata
+parseTable (JSObject ob) = do
+  tab_name     <- valFromObj "name"     ob
+  tab_tableId  <- valFromObj "tableId" ob
+  tab_columns  <- mapM parseColumn =<< valFromObj "columns" ob
+  return TableMetadata {tab_name, tab_tableId, tab_columns}
+parseTable oth = Error$ "parseTable: Expected JSObject, got "++show oth
    
 parseColumn :: JSValue -> Result ColumnMetadata
 parseColumn (JSObject ob) = do
@@ -132,8 +167,12 @@ parseColumn oth = Error$ "parseColumn: Expected JSObject, got "++show oth
 --   See <https://developers.google.com/fusiontables/docs/v1/reference/column/list>.
 listColumns :: AccessToken -- ^ The OAuth 2.0 access token.
             -> TableId     -- ^ which table
-            -> IO JSValue
-listColumns accessToken tid = doRequest req
+            -> IO [ColumnMetadata]
+listColumns accessToken tid = 
+  do resp <- doRequest req
+     case parseColumns resp of
+       Ok x -> return x
+       Error err -> error$ "listColumns: failed to parse JSON response:\n"++err
  where
    req = makeRequest accessToken fusiontableApi "GET"
                      ( fusiontableHost, "fusiontables/v1/tables/"++tid++"/columns" )
@@ -156,15 +195,11 @@ insertRows :: AccessToken -> TableId
               -> [FTString]   -- ^ Which columns to write.
               -> [[FTString]] -- ^ Rows 
               -> IO ()
-insertRows tok tid cols rows =
-  do putStrLn$"DOING REQUEST "++show req
-     putStrLn$ "VALS before encode "++ show vals
-     doRequest req
+insertRows tok tid cols rows = doRequest req     
  where
-   req = (makeRequest tok fusiontableApi "GET"
+   req = (makeRequest tok fusiontableApi "POST"
            (fusiontableHost, "fusiontables/v1/query" ))
            {
-             method = B.pack "POST",
              queryString = B.pack$ H.urlEncodeVars [("sql",query)]
            }
    query = concat $ L.intersperse ";\n" $
@@ -182,8 +217,23 @@ insertRows tok tid cols rows =
    singQuote x = "'"++x++"'"
 
 
--- Implement a larger quantity of rows, but with the caveat that the number and order
+-- | Implement a larger quantity of rows, but with the caveat that the number and order
 -- of columns must exactly match the schema of the fusion table on the server.
-bulkImportRows = error "implement bulkImportRows"
+-- `bulkImportRows` will perform a listing of the columns to verify this before uploading.
+bulkImportRows :: AccessToken -> TableId
+              -> [FTString]   -- ^ Which columns to write.
+              -> [[FTString]] -- ^ Rows 
+              -> IO ()
+bulkImportRows tok tid cols rows = do 
+  -- listColumns
 
+  let csv = "38"
+      req = appendBody (BL.pack csv)
+         (makeRequest tok fusiontableApi "POST"
+           (fusiontableHost, "fusiontables/v1/tables/"++tid++"/import" ))
+  
+  error "implement bulkImportRows"
+
+
+-- TODO: provide some basic select functionality
 filterRows = error "implement filterRows"

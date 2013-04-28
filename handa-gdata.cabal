@@ -1,11 +1,11 @@
 name: handa-gdata
-version: 0.6.0
+version: 0.6.1
 cabal-version: >=1.6
 build-type: Simple
 license: MIT
 license-file: LICENSE
-copyright: (c) 2012-13 Brian W Bush
-maintainer: Brian W Bush <b.w.bush@acm.org>
+copyright: (c) 2012-13 Brian W Bush, Ryan Newton
+maintainer: Brian W Bush <b.w.bush@acm.org>, Ryan Newton <rrnewton@indiana.edu>
 stability: Stable
 homepage: http://code.google.com/p/hgdata
 package-url: http://code.google.com/p/hgdata/downloads/list
@@ -66,7 +66,7 @@ description: This project provides a Haskell library and command-line interface 
              .
              * Listing photos in an album
 category: Network
-author: Brian W Bush <b.w.bush@acm.org>
+author: Brian W Bush <b.w.bush@acm.org>, Ryan Newton <rrnewton@indiana.edu>
 data-dir: ""
  
 source-repository head
