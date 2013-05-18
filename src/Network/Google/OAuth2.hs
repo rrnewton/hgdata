@@ -85,6 +85,8 @@ import Control.Monad  (unless)
 import Data.ByteString.Char8 as BS8 (ByteString, pack)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.List (intercalate)
+import Data.Time.Clock       (getCurrentTime)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Word (Word64)
 import Network.Google (makeHeaderName)
 import Network.HTTP.Base (urlEncode)
@@ -93,7 +95,8 @@ import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
 import System.Info    (os)
 import System.Process (rawSystem)
 import System.Exit    (ExitCode(..))
-import System.Directory (doesFileExist, doesDirectoryExist, getAppUserDataDirectory, createDirectory, renameFile)
+import System.Directory (doesFileExist, doesDirectoryExist, getAppUserDataDirectory,
+                         createDirectory, renameFile, removeFile)
 import System.FilePath ((</>),(<.>), splitExtension)
 import System.Random (randomIO)
 
@@ -295,42 +298,65 @@ validateTokens tokens =
 -- The first time it is called, this may open a web-browser, and/or request the user
 -- enter data on the command line.  Subsequently, invocations on the same machine
 -- should not communicate with the user.
--- 
+--
+-- If the tokens do not expire until more than 15 minutes in the future, this
+-- procedure will skip the refresh step.  Whether or not it refreshes should be
+-- immaterial to the clients subsequent actions, because all clients should handle
+-- authentication errors (and all 5xx errors) and call `refreshToken` as necessary.
 getCachedTokens :: OAuth2Client -- ^ The client is the \"key\" for token lookup.
                 -> IO OAuth2Tokens 
 getCachedTokens client = do 
    cabalD <- getAppUserDataDirectory "cabal"
-   let tokenD = cabalD </> "googleAuthTokens" 
-       tokenF = tokenD </> clientId client <.> "token" 
+   let tokenD = cabalD </> "googleAuthTokens"
+       tokenF = tokenD </> clientId client <.> "token"
    d1       <- doesDirectoryExist cabalD     
    unless d1 $ createDirectory cabalD -- Race.
    d2       <- doesDirectoryExist tokenD 
    unless d2 $ createDirectory tokenD -- Race.
    f1       <- doesFileExist tokenF
-   if f1 then do 
-     toks <- fmap read (readFile tokenF)
-     -- Our policy is to *always* refresh:
-     toks2 <- refreshTokens client toks
-     toks3 <- timestamp toks2
-     atomicWriteFile tokenF (show toks3)
-     return toks3
+   if f1 then do
+      str <- readFile tokenF
+      case reads str of
+        -- Here's our approach to versioning!  If we can't read it, we remove it.
+        ((oldtime,toks),_):_ -> do
+          tagged <- checkExpiry tokenF (oldtime,toks)
+          return (snd tagged)
+        [] -> do
+          putStrLn$"[getCachedTokens] Could not read tokens from file: "++ tokenF
+          putStrLn$"[getCachedTokens] Removing tokens and re-authenticating..."
+          removeFile tokenF 
+          getCachedTokens client
     else do 
      toks <- askUser
      atomicWriteFile tokenF (show toks)
      return toks
- where
-   -- TODO: Convert relative time to absolute UTF time for the tokens:
-   timestamp toks =
-     return toks
+ where   
+   -- Tokens store a relative time, which is rather silly (relative to what?).  This
+   -- routine tags a token with the time it was issued, so as to enable figuring out
+   -- the absolute expiration time.  Also, as a side effect, this is where we refresh
+   -- the token if it is already expired or expiring soon.
+   checkExpiry :: String -> (Rational, OAuth2Tokens) -> IO (Rational, OAuth2Tokens)
+   checkExpiry tokenF orig@(start1,toks1) = do
+     t <- getCurrentTime 
+     let nowsecs = toRational (utcTimeToPOSIXSeconds t)
+         expire1 = start1 + expiresIn toks1
+         tolerance = 15 * 60 -- Skip refresh if token is good for at least 15 min.
+     if (expire1 < tolerance + nowsecs) then do
+       toks2 <- refreshTokens client toks1
+       t2    <- getCurrentTime
+       let tagged = (toRational (utcTimeToPOSIXSeconds t2), toks2)
+       atomicWriteFile tokenF (show tagged)
+       return tagged
+      else return orig
    
    -- This is the part where we require user interaction:
    askUser = do 
-     putStrLn$ "Load this URL: "++show permissionUrl
+     putStrLn$ "[getCachedTokens] Load this URL: "++show permissionUrl
      runBrowser 
-     putStrLn "Then please paste the verification code and press enter:\n$ "
+     putStrLn "[getCachedTokens] Then please paste the verification code and press enter:\n$ "
      authcode <- getLine
      tokens   <- exchangeCode client authcode
-     putStrLn$ "Received access token: "++show (accessToken tokens)
+     putStrLn$ "[getCachedTokens] Received access token: "++show (accessToken tokens)
      return tokens
 
    permissionUrl = formUrl client ["https://www.googleapis.com/auth/fusiontables"]
