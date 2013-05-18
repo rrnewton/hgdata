@@ -322,20 +322,19 @@ getCachedTokens client = do
           tagged <- checkExpiry tokenF (oldtime,toks)
           return (snd tagged)
         [] -> do
-          putStrLn$"[getCachedTokens] Could not read tokens from file: "++ tokenF
-          putStrLn$"[getCachedTokens] Removing tokens and re-authenticating..."
+          putStrLn$" [getCachedTokens] Could not read tokens from file: "++ tokenF
+          putStrLn$" [getCachedTokens] Removing tokens and re-authenticating..."
           removeFile tokenF 
           getCachedTokens client
     else do 
      toks <- askUser
-     atomicWriteFile tokenF (show toks)
-     return toks
+     fmap snd$ timeStampAndWrite tokenF toks
  where   
    -- Tokens store a relative time, which is rather silly (relative to what?).  This
    -- routine tags a token with the time it was issued, so as to enable figuring out
    -- the absolute expiration time.  Also, as a side effect, this is where we refresh
    -- the token if it is already expired or expiring soon.
-   checkExpiry :: String -> (Rational, OAuth2Tokens) -> IO (Rational, OAuth2Tokens)
+   checkExpiry :: FilePath -> (Rational, OAuth2Tokens) -> IO (Rational, OAuth2Tokens)
    checkExpiry tokenF orig@(start1,toks1) = do
      t <- getCurrentTime 
      let nowsecs = toRational (utcTimeToPOSIXSeconds t)
@@ -343,20 +342,24 @@ getCachedTokens client = do
          tolerance = 15 * 60 -- Skip refresh if token is good for at least 15 min.
      if (expire1 < tolerance + nowsecs) then do
        toks2 <- refreshTokens client toks1
-       t2    <- getCurrentTime
-       let tagged = (toRational (utcTimeToPOSIXSeconds t2), toks2)
+       timeStampAndWrite tokenF toks2
+      else return orig
+
+   timeStampAndWrite :: FilePath -> OAuth2Tokens -> IO (Rational, OAuth2Tokens)
+   timeStampAndWrite tokenF toks = do 
+       t2 <- getCurrentTime       
+       let tagged = (toRational (utcTimeToPOSIXSeconds t2), toks)
        atomicWriteFile tokenF (show tagged)
        return tagged
-      else return orig
-   
+
    -- This is the part where we require user interaction:
    askUser = do 
-     putStrLn$ "[getCachedTokens] Load this URL: "++show permissionUrl
+     putStrLn$ " [getCachedTokens] Load this URL: "++show permissionUrl
      runBrowser 
-     putStrLn "[getCachedTokens] Then please paste the verification code and press enter:\n$ "
+     putStrLn " [getCachedTokens] Then please paste the verification code and press enter:\n$ "
      authcode <- getLine
      tokens   <- exchangeCode client authcode
-     putStrLn$ "[getCachedTokens] Received access token: "++show (accessToken tokens)
+     putStrLn$ " [getCachedTokens] Received access token: "++show (accessToken tokens)
      return tokens
 
    permissionUrl = formUrl client ["https://www.googleapis.com/auth/fusiontables"]
