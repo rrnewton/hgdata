@@ -1,6 +1,11 @@
 name: handa-gdata
-version: 0.6.1
+version: 0.6.2
 cabal-version: >=1.6
+
+-- CHANGELOG:
+-- 0.6.2: Improve getCachedTokens
+-- 
+
 build-type: Simple
 license: MIT
 license-file: LICENSE
@@ -11,6 +16,7 @@ homepage: http://code.google.com/p/hgdata
 package-url: http://code.google.com/p/hgdata/downloads/list
 bug-reports: http://code.google.com/p/hgdata/issues/entry
 synopsis: Library and command-line utility for accessing Google services and APIs.
+
 description: This project provides a Haskell library and command-line interface for Google services such as Google Storage, Contacts, Books, etc.
              .
              For OAuth 2.0, the following operations are supported:
