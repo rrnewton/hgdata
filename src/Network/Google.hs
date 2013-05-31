@@ -27,7 +27,7 @@ module Network.Google (
 , appendQuery
 , doManagedRequest
 , doRequest
-, retryIORequest
+-- , retryIORequest
 , makeHeaderName
 , makeProjectRequest
 , makeRequest
