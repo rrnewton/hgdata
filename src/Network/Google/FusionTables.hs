@@ -135,7 +135,8 @@ listTables accessToken =
   do resp <- doRequest req
      case parseTables resp of
        Ok x -> return x
-       Error err -> error$ "listTables: failed to parse JSON response:\n"++err
+       Error err -> error$ "listTables: failed to parse JSON response, error was:\n  "
+                    ++err++"\nJSON response was:\n  "++show resp
  where
    req  = makeRequest accessToken fusiontableApi "GET"
                      ( fusiontableHost, "fusiontables/v1/tables" )
