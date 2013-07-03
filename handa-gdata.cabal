@@ -1,11 +1,11 @@
 name: handa-gdata
-version: 0.6.1
+version: 0.6.3
 cabal-version: >=1.6
 build-type: Simple
 license: MIT
 license-file: LICENSE
 copyright: (c) 2012-13 Brian W Bush, Ryan Newton
-maintainer: Brian W Bush <b.w.bush@acm.org>, Ryan Newton <rrnewton@indiana.edu>
+maintainer: Brian W Bush <b.w.bush@acm.org>
 stability: Stable
 homepage: http://code.google.com/p/hgdata
 package-url: http://code.google.com/p/hgdata/downloads/list
@@ -74,36 +74,83 @@ source-repository head
     location: https://code.google.com/p/hgdata/
  
 library
-    build-depends: HTTP -any, base <6, base64-bytestring -any,
-                   binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, split -any, http-conduit,
-                   json -any, old-locale -any, process -any, pureMD5 -any,
-                   regex-posix -any, resourcet -any, time -any, unix -any,
-                   utf8-string -any, xml -any, random -any, pretty -any, GenericPretty -any
-    exposed-modules: Crypto.GnuPG Crypto.MD5 Network.Google
-                     Network.Google.Bookmarks Network.Google.Books
-                     Network.Google.Contacts Network.Google.OAuth2 Network.Google.Picasa
-                     Network.Google.Storage Network.Google.Storage.Encrypted
-                     Network.Google.Storage.Sync
+    build-depends: base              >= 4 && < 5
+                 , base64-bytestring >= 0.9.1.4
+                 , binary            >= 0.5.1.1
+                 , bytestring        >= 0.10.0.2
+                 , case-insensitive  >= 0.2
+                 , directory         -any
+                 , filepath          -any
+                 , GenericPretty     >= 1.0.0
+                 , HTTP              >= 4000.2.5
+                 , http-conduit      >= 1.9.0
+                 , json              >= 0.5
+                 , old-locale        -any
+                 , pretty            -any
+                 , process           >= 1.1.0.2
+                 , pureMD5           >= 2.1.2.1
+                 , random            -any
+                 , regex-posix       >= 0.95.2
+                 , resourcet         >= 0.3
+                 , split             >= 0.2.0.0
+                 , time              -any
+                 , unix              -any
+                 , utf8-string       -any
+                 , xml               >= 1.2.6
+    exposed-modules: Crypto.GnuPG
+                     Crypto.MD5
+                     Network.Google
+                     Network.Google.Bookmarks
+                     Network.Google.Books
+                     Network.Google.Contacts
                      Network.Google.FusionTables
+                     Network.Google.OAuth2
+                     Network.Google.Picasa
+                     Network.Google.Storage
+                     Network.Google.Storage.Encrypted
+                     Network.Google.Storage.Sync
     exposed: True
     buildable: True
     hs-source-dirs: src
  
 executable hgdata
-    build-depends: HTTP -any, base <6, base64-bytestring -any,
-                   binary -any, bytestring -any, case-insensitive -any, cmdargs -any,
-                   directory -any, filepath -any, split -any, http-conduit,
-                   json -any, old-locale -any, process -any, pureMD5 -any,
-                   regex-posix -any, resourcet -any, time -any, unix -any,
-                   utf8-string -any, xml -any, random -any, pretty -any, GenericPretty -any
+    build-depends: base              >= 4 && < 5 
+                 , base64-bytestring >= 0.9.1.4
+                 , binary            >= 0.5.1.1
+                 , bytestring        >= 0.10.0.2
+                 , case-insensitive  >= 0.2
+                 , directory         -any
+                 , filepath          -any
+                 , cmdargs           >= 0.9.4
+                 , GenericPretty     >= 1.0.0
+                 , HTTP              >= 4000.2.5
+                 , http-conduit      >= 1.9.0
+                 , json              >= 0.5
+                 , old-locale        -any
+                 , pretty            -any
+                 , process           >= 1.1.0.2
+                 , pureMD5           >= 2.1.2.1
+                 , random            -any
+                 , regex-posix       >= 0.95.2
+                 , resourcet         >= 0.3
+                 , split             >= 0.2.0.0
+                 , time              -any
+                 , unix              -any
+                 , utf8-string       -any
+                 , xml               >= 1.2.6
     main-is: Main.hs
     buildable: True
     hs-source-dirs: src
-    other-modules: Network.Google Network.Google.Contacts
-                   Network.Google.Storage Network.Google.OAuth2 Network.Google.Picasa
-                   Network.Google.Bookmarks Network.Google.Books
-                   Network.Google.Storage.Encrypted Network.Google.Storage.Sync
+    other-modules: Crypto.GnuPG
+                   Crypto.MD5
+                   Network.Google
+                   Network.Google.Bookmarks
+                   Network.Google.Books
+                   Network.Google.Contacts
                    Network.Google.FusionTables
-                   Crypto.MD5 Crypto.GnuPG
+                   Network.Google.OAuth2
+                   Network.Google.Picasa
+                   Network.Google.Storage
+                   Network.Google.Storage.Encrypted
+                   Network.Google.Storage.Sync
  
