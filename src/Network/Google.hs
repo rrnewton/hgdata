@@ -13,7 +13,7 @@
 -----------------------------------------------------------------------------
 
 
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
 
 
 module Network.Google (
@@ -27,6 +27,7 @@ module Network.Google (
 , appendQuery
 , doManagedRequest
 , doRequest
+-- , retryIORequest
 , makeHeaderName
 , makeProjectRequest
 , makeRequest
@@ -34,7 +35,8 @@ module Network.Google (
 ) where
 
 
-import Control.Exception (finally)
+import qualified Control.Exception as E
+import Control.Concurrent (threadDelay)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Data.List (intercalate)
 import Data.Maybe (fromJust)
@@ -44,7 +46,8 @@ import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), closeManager, def, httpLbs, newManager, responseBody)
+import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), HttpException, 
+                             closeManager, def, httpLbs, newManager, responseBody)
 import Text.JSON (JSValue, Result(Ok), decode)
 import Text.XML.Light (Element, parseXMLDoc)
 
@@ -115,7 +118,7 @@ class DoRequest a where
       doManagedRequest manager request
 --}
       manager <- newManager def
-      finally
+      E.finally
         (doManagedRequest manager request)
         (closeManager manager)
   doManagedRequest ::
@@ -235,3 +238,24 @@ appendQuery query request =
         -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
         queryString = BS8.pack $ '?' : query'
       }
+
+
+-- | Takes an idempotent IO action that includes a network request.  Catches
+-- `HttpException`s and tries a gain a certain number of times.  The second argument
+-- is a callback to invoke every time a retry occurs.
+-- 
+-- Takes a list of *seconds* to wait between retries.  A null list means no retries,
+-- an infinite list will retry indefinitely.  The user can choose whatever temporal
+-- pattern they desire (e.g. exponential backoff).
+--
+-- Once the retry list runs out, the last attempt may throw `HttpException`
+-- exceptions that escape this function.
+retryIORequest :: IO a -> (HttpException -> IO ()) -> [Double] -> IO a
+retryIORequest req retryHook times = loop times
+  where
+    loop [] = req
+    loop (delay:tl) = 
+      E.catch req $ \ (exn::HttpException) -> do 
+        retryHook exn
+        threadDelay (round$ delay * 1000 * 1000) -- Microseconds
+        loop tl
