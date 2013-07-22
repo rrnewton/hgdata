@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.6.4
+version: 0.6.5
 cabal-version: >=1.6
 
 -- CHANGELOG:
@@ -100,7 +100,7 @@ library
                  , resourcet         >= 0.3
                  , split             >= 0.2.0.0
                  , time              -any
-                 , unix              -any
+                 , unix-compat       -any
                  , utf8-string       -any
                  , xml               >= 1.2.6
     exposed-modules: Crypto.GnuPG
@@ -132,6 +132,7 @@ executable hgdata
                  , HTTP              >= 4000.2.5
                  , http-conduit      >= 1.9.0
                  , json              >= 0.5
+                 , network           -any
                  , old-locale        -any
                  , pretty            -any
                  , process           >= 1.1.0.2
@@ -141,7 +142,7 @@ executable hgdata
                  , resourcet         >= 0.3
                  , split             >= 0.2.0.0
                  , time              -any
-                 , unix              -any
+                 , unix-compat       -any
                  , utf8-string       -any
                  , xml               >= 1.2.6
     main-is: Main.hs

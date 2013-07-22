@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  POSIX
+-- Portability :  Portable
 --
 -- | Synchronization of filesystem directories with Google Storage buckets.
 --
@@ -42,7 +42,7 @@ import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.FilePath (pathSeparator)
 import System.IO (hFlush, stdout)
 import System.Locale (defaultTimeLocale)
-import System.Posix.Files (fileSize, getFileStatus, modificationTime)
+import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
 import Text.Regex.Posix ((=~))
 import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildName, ppTopElement, strContent)
 

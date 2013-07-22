@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  Linux only?
 --
 -- | Interface to GnuPG.  The GnuPG program \"gpg\" must be on the PATH.
 --

@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :  Linux
+-- Portability :  Portable
 --
 -- |  Command-line access to Google APIs.
 --
@@ -34,6 +34,7 @@ import Network.Google.Picasa (defaultUser, listAlbums, listPhotos)
 import Network.Google.Storage (StorageAcl(Private), deleteObject, getBucket, getObject, headObject, putObject)
 import Network.Google.Storage.Encrypted (getEncryptedObject, putEncryptedObject)
 import Network.Google.Storage.Sync (sync)
+import Network.Socket.Internal (withSocketsDo)
 import System.Console.CmdArgs
 import Text.JSON (encode)
 import Text.XML.Light (ppTopElement)
@@ -161,7 +162,7 @@ hgData =
     , gshead
     , gssync
     ]
-    &= summary "hgData v0.6.1, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+    &= summary "hgData v0.6.5, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
@@ -589,6 +590,6 @@ dispatch (GSSync clientId clientSecret refreshToken projectId bucket directory a
 -- | Main entry point.
 main :: IO ()
 main =
-  do
+  withSocketsDo $ do
     command <- cmdArgs hgData
     dispatch command

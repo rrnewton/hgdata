@@ -6,7 +6,7 @@
 --
 -- Maintainer  :  Brian W Bush <b.w.bush@acm.org>
 -- Stability   :  Stable
--- Portability :
+-- Portability :  Portable
 --
 -- | Functions for the Google Books API, see <https://developers.google.com/books/docs/v1/using#WorkingMyBookshelves>.
 --
