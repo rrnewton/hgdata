@@ -22,9 +22,11 @@ module Network.Google.Books (
 ) where
 
 
-import Network.Google (AccessToken, doRequest, makeRequest)
+import Control.Monad (liftM)
+import Data.Maybe (fromMaybe)
+import Network.Google (AccessToken, appendQuery, doRequest, makeRequest)
 import Network.HTTP.Conduit (Request)
-import Text.JSON (JSObject, JSValue(..), Result(Ok), decode, valFromObj)
+import Text.JSON (JSObject, JSValue(..), Result(Ok), decode, fromJSObject, toJSObject, valFromObj)
 
 
 -- | The host for API access.
@@ -46,7 +48,7 @@ listBookshelves ::
      AccessToken  -- ^ The OAuth 2.0 access token.
   -> IO JSValue   -- ^ The action returning the bookshelves' metadata in JSON format.
 listBookshelves accessToken =
-  doRequest $ booksRequest accessToken Nothing
+  doRequest $ booksRequest accessToken Nothing 0
 
 
 -- | List the bookshelf IDs, see <https://developers.google.com/books/docs/v1/using#RetrievingMyBookshelves>.
@@ -90,17 +92,81 @@ listShelfBooks ::
   -> ShelfId      -- ^ The bookshelf ID.
   -> IO JSValue   -- ^ The action returning the books' metadata in JSON format.
 listShelfBooks accessToken shelf =
-  doRequest $ booksRequest accessToken (Just shelf)
+  do
+    x <- listShelfBooks' accessToken shelf Nothing
+    let
+      y :: [JSValue]
+      y = concatMap items x
+      JSObject o = head x
+      z :: [(String, JSValue)]
+      z = fromJSObject o
+      u :: [(String, JSValue)]
+      u = filter (\w -> fst w /= "items") z
+      v :: [(String, JSValue)]
+      v = ("items", JSArray y) : u
+    return $ JSObject $ toJSObject v
+
+
+-- | List the books in a shelf, see <https://developers.google.com/books/docs/v1/using#RetrievingMyBookshelfVolumes>.
+listShelfBooks' ::
+     AccessToken    -- ^ The OAuth 2.0 access token.
+  -> ShelfId        -- ^ The bookshelf ID.
+  -> Maybe Int      -- ^ The start index in the list of metadata.
+  -> IO [JSValue]   -- ^ The action returning the books' metadata in JSON format.
+listShelfBooks' accessToken shelf startIndex =
+  do
+    let
+      startIndex' :: Int
+      startIndex' = fromMaybe 0 startIndex
+    books <- doRequest $ booksRequest accessToken (Just shelf) startIndex'
+    let
+      startIndex'' = startIndex' + length (items books)
+    liftM (books :) $
+      if startIndex' + 1 <= totalItems books
+        then listShelfBooks' accessToken shelf $ Just startIndex''
+        else return []
+
+
+-- | Find the total number of items in a shelf.
+totalItems ::
+     JSValue  -- ^ The books' metadata.
+  -> Int      -- ^ The total number of books in the shelf.
+totalItems (JSObject books) =
+  let
+    Ok count = "totalItems" `valFromObj` books
+  in
+    count
+
+
+-- | Find the items in a list of books' metadata.
+items ::
+     JSValue    -- ^ The books' metadata
+  -> [JSValue]  -- ^ The books in the metadata.
+items (JSObject books) =
+  let
+    list = "items" `valFromObj` books
+    f (Ok x) = x
+    f _ = []
+  in
+    f list
 
 
 -- | Make an HTTP request for Google Books.
 booksRequest ::
      AccessToken    -- ^ The OAuth 2.0 access token.
   -> Maybe ShelfId  -- ^ The bookshelf ID.
+  -> Int            -- ^ The starting index
   -> Request m      -- ^ The request.
-booksRequest accessToken shelf =
-  makeRequest accessToken booksApi "GET"
+booksRequest accessToken shelf startIndex =
+  appendQuery
+    [
+      ("maxResults", "40")
+    , ("startIndex", show startIndex)
+    ]
+    $
+    makeRequest accessToken booksApi "GET"
     (
       booksHost
     , "/books/v1/mylibrary/bookshelves" ++ maybe "" (\x -> "/" ++ x ++ "/volumes") shelf
+
     )
