@@ -340,7 +340,7 @@ getCachedTokens client = do
      let nowsecs = toRational (utcTimeToPOSIXSeconds t)
          expire1 = start1 + expiresIn toks1
          tolerance = 15 * 60 -- Skip refresh if token is good for at least 15 min.
-     if (expire1 < tolerance + nowsecs) then do
+     if expire1 < tolerance + nowsecs then do
        toks2 <- refreshTokens client toks1
        timeStampAndWrite tokenF toks2
       else return orig

@@ -251,7 +251,7 @@ appendQuery query request =
 -- Once the retry list runs out, the last attempt may throw `HttpException`
 -- exceptions that escape this function.
 retryIORequest :: IO a -> (HttpException -> IO ()) -> [Double] -> IO a
-retryIORequest req retryHook times = loop times
+retryIORequest req retryHook = loop
   where
     loop [] = req
     loop (delay:tl) = 
