@@ -119,7 +119,7 @@ makePath ::
      String  -- ^ The unencoded path.
   -> String  -- ^ The URL-encoded path.
 -- TODO: Review whether the sequence of UTF-8 encoding and URL encoding is correct.  This works correctly with tests of exotic unicode sequences, however.
-makePath = ('/' :) . intercalate "/" . map (urlEncode . unpack . fromString) . splitOn "/"
+makePath = ('/' :) . intercalate "/" . map urlEncode . splitOn "/"
 
 
 -- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.

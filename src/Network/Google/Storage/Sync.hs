@@ -39,7 +39,8 @@ import Network.Google.Storage (BucketName, KeyName, MIMEType, StorageAcl, delete
 import Network.Google.Storage.Encrypted (putEncryptedObject, putEncryptedObjectUsingManager)
 import Network.HTTP.Conduit (closeManager, def, newManager)
 import System.Directory (doesDirectoryExist, getDirectoryContents)
-import System.FilePath (pathSeparator)
+import System.FilePath (combine, splitDirectories)
+import System.FilePath.Posix (joinPath)
 import System.IO (hFlush, stdout)
 import System.Locale (defaultTimeLocale)
 import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
@@ -212,7 +213,7 @@ sync' lister putter deleter client tokens directory byETag local md5sums purge =
       else
         return tokenClock'
     when md5sums $
-      writeFile (directory ++ "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local
+      writeFile (combine directory "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local
 
 
 -- | Delete the first occurrence of items in the second list from the first list, assuming both lists are sorted.
@@ -250,7 +251,7 @@ walkPutter client tokenClock directory putter (x : xs) =
         do
           let
             eTag' x = if eTag x == md5Empty then Nothing else Just $ eTag x
-          bytes <- LBS.readFile $ directory ++ [pathSeparator] ++ key'
+          bytes <- LBS.readFile $ combine directory key'
           putter key' Nothing bytes (eTag' x) (toAccessToken $ accessToken tokens')
           return ()
       )
@@ -329,7 +330,7 @@ walkDirectories ::
      Bool                 -- ^ Whether to compute MD5 sums.
   -> FilePath             -- ^ The directory to be synchronized.
   -> IO [ObjectMetadata]  -- ^ Action returning file descriptions.
-walkDirectories eTags directory = walkDirectories' eTags (directory ++ [pathSeparator]) [""]
+walkDirectories eTags directory = walkDirectories' eTags directory [""]
 
 
 -- | Gather file metadata from the file system.
@@ -355,8 +356,8 @@ walkDirectories' eTags directory (y : ys) =
           makeMetadata file =
             do
               let
-                key = tail file
-                path = directory ++ key
+                key = (joinPath . splitDirectories) file
+                path = combine directory key
               bytes <- LBS.readFile path
               status <- getFileStatus path
               let
@@ -364,9 +365,9 @@ walkDirectories' eTags directory (y : ys) =
                 !size = fromIntegral $ fileSize status
                 !eTag = if eTags then md5Base64 bytes else md5Empty
               return $ ObjectMetadata key eTag size lastTime
-        files <- liftM (map ((y ++ [pathSeparator]) ++) . ( \\ [".", ".."]))
-               $ getDirectoryContents (directory ++ y)
-        y' <- filterM (doesDirectoryExist . (directory ++)) files
+        files <- liftM (map (combine y) . ( \\ [".", ".."]))
+               $ getDirectoryContents (combine directory y)
+        y' <- filterM (doesDirectoryExist . combine directory) files
         x' <- mapM makeMetadata $ files \\ y'
         liftM (x' ++) $ walkDirectories' eTags directory (y' ++ ys)
     )
