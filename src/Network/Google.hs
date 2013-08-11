@@ -112,11 +112,6 @@ class DoRequest a where
     -> IO a                    -- ^ The action returning the result of performing the request.
   doRequest request =
     do
-{--
-      -- TODO: The following seems cleaner, but has type/instance problems:
-      (_, manager) <- allocate (newManager def) closeManager
-      doManagedRequest manager request
---}
       manager <- newManager def
       E.finally
         (doManagedRequest manager request)
