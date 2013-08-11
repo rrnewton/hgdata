@@ -29,7 +29,7 @@ import Crypto.MD5 (MD5Info, md5Base64, md5Empty)
 import qualified Data.ByteString.Lazy as LBS (ByteString, readFile)
 import qualified Data.Digest.Pure.MD5 as MD5 (md5)
 import Data.List ((\\), sort)
-import Data.Maybe (fromJust, mapMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, mapMaybe)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (parseTime)
@@ -213,7 +213,7 @@ sync' lister putter deleter client tokens directory byETag local md5sums purge =
       else
         return tokenClock'
     when md5sums $
-      writeFile (combine directory "/.md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local
+      writeFile (combine directory ".md5sum") $ unlines $ map (\x -> (fst . eTag) x ++ "  ./" ++ key x) local
 
 
 -- | Delete the first occurrence of items in the second list from the first list, assuming both lists are sorted.
@@ -282,8 +282,10 @@ walkDeleter client tokenClock deleter (x : xs) =
     walkDeleter client tokenClock' deleter xs
 
 
--- |
-handler :: SomeException -> IO ()
+-- | Exception handler.
+handler ::
+     SomeException  -- ^ The exception.
+  -> IO ()          -- ^ An empty action.
 handler exception = putStrLn $ "  FAIL " ++ show exception
 
 
@@ -341,33 +343,38 @@ walkDirectories' ::
   -> IO [ObjectMetadata]  -- ^ Action returning file descriptions.
 walkDirectories' _ _ [] = return []
 walkDirectories' eTags directory (y : ys) =
-  handle
-    ((
-      \exception ->
-        do
-          putStrLn $ "  LIST " ++ y
-          putStrLn $ "    FAIL " ++ show exception
-          walkDirectories' eTags directory ys
-    ) :: SomeException -> IO [ObjectMetadata])
-    (
-      do
-        let
-          makeMetadata :: FilePath -> IO ObjectMetadata
-          makeMetadata file =
-            do
-              let
-                key = (joinPath . splitDirectories) file
-                path = combine directory key
-              bytes <- LBS.readFile path
-              status <- getFileStatus path
-              let
-                !lastTime = posixSecondsToUTCTime $ realToFrac $ modificationTime status
-                !size = fromIntegral $ fileSize status
-                !eTag = if eTags then md5Base64 bytes else md5Empty
-              return $ ObjectMetadata key eTag size lastTime
-        files <- liftM (map (combine y) . ( \\ [".", ".."]))
-               $ getDirectoryContents (combine directory y)
-        y' <- filterM (doesDirectoryExist . combine directory) files
-        x' <- mapM makeMetadata $ files \\ y'
-        liftM (x' ++) $ walkDirectories' eTags directory (y' ++ ys)
-    )
+    do
+      let
+        handler :: a -> SomeException -> IO a
+        handler def exception =
+          do
+            putStrLn $ "  LIST " ++ y
+            putStrLn $ "    FAIL " ++ show exception
+            return def
+        makeMetadata :: FilePath -> IO (Maybe ObjectMetadata)
+        makeMetadata file =
+          handle
+            (handler Nothing)
+            (
+              do
+                let
+                  key = (joinPath . splitDirectories) file
+                  path = combine directory key
+                bytes <- LBS.readFile path
+                status <- getFileStatus path
+                let
+                  !lastTime = posixSecondsToUTCTime $ realToFrac $ modificationTime status
+                  !size = fromIntegral $ fileSize status
+                  !eTag = if eTags then md5Base64 bytes else md5Empty
+                return $ Just $ ObjectMetadata key eTag size lastTime
+            )
+      files <-
+        handle
+          (handler [])
+          (
+            liftM (map (combine y) . (\\ [".", ".."]))
+              $ getDirectoryContents (combine directory y)
+          )
+      y' <- filterM (doesDirectoryExist . combine directory) files
+      x' <- mapM makeMetadata $ files \\ y'
+      liftM (catMaybes x' ++) $ walkDirectories' eTags directory (y' ++ ys)
