@@ -43,7 +43,7 @@ import System.FilePath (combine, splitDirectories)
 import System.FilePath.Posix (joinPath)
 import System.IO (hFlush, stdout)
 import System.Locale (defaultTimeLocale)
-import System.PosixCompat.Files (fileSize, getFileStatus, modificationTime)
+import System.PosixCompat.Files (fileSize, getFileStatus, getSymbolicLinkStatus, isSymbolicLink, modificationTime)
 import Text.Regex.Posix ((=~))
 import Text.XML.Light (Element, QName(qName), filterChildrenName, filterChildName, ppTopElement, strContent)
 
@@ -345,6 +345,16 @@ walkDirectories' _ _ [] = return []
 walkDirectories' eTags directory (y : ys) =
     do
       let
+        isWalkable path =
+          do
+            directoryExists <- doesDirectoryExist path
+            status <- getSymbolicLinkStatus path
+            return $ directoryExists && not (isSymbolicLink status)
+        isFileable path =
+          do
+            directoryExists <- doesDirectoryExist path
+            status <- getSymbolicLinkStatus path
+            return $ not directoryExists && not (isSymbolicLink status)
         handler :: a -> SomeException -> IO a
         handler def exception =
           do
@@ -375,6 +385,7 @@ walkDirectories' eTags directory (y : ys) =
             liftM (map (combine y) . (\\ [".", ".."]))
               $ getDirectoryContents (combine directory y)
           )
-      y' <- filterM (doesDirectoryExist . combine directory) files
-      x' <- mapM makeMetadata $ files \\ y'
+      y' <- filterM (isWalkable . combine directory) files
+      y'' <- filterM (isFileable . combine directory) files
+      x' <- mapM makeMetadata y''
       liftM (catMaybes x' ++) $ walkDirectories' eTags directory (y' ++ ys)

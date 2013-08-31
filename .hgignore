@@ -3,3 +3,4 @@ syntax: regexp
 ^dist/
 ^test/
 ^cabal-dev/
+\.swp$

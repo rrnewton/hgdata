@@ -162,7 +162,7 @@ hgData =
     , gshead
     , gssync
     ]
-    &= summary "hgData v0.6.6, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
+    &= summary "hgData v0.6.7, (c) 2012-13 Brian W. Bush <b.w.bush@acm.org>, MIT license."
     &= program "hgdata"
     &= help "Command-line utility for accessing Google services and APIs. Send bug reports and feature requests to <http://code.google.com/p/hgdata/issues/entry>."
 
