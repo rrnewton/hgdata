@@ -29,10 +29,10 @@ module Network.Google.FusionTables (
   -- * Higher level interface to common SQL queries    
   , insertRows
     -- , filterRows
-    -- bulkImportRows
+  , bulkImportRows
 ) where
 
-import           Control.Monad (liftM)
+import           Control.Monad (liftM, unless)
 import           Data.Maybe (mapMaybe)
 import           Data.List as L
 import qualified Data.ByteString.Char8 as B
@@ -45,7 +45,7 @@ import           Text.XML.Light (Element(elContent), QName(..), filterChildrenNa
 -- TODO: Ideally this dependency wouldn't exist here and the user could select their
 -- own JSON parsing lib (e.g. Aeson).
 import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error),
-                            decode, valFromObj, toJSObject, toJSString)
+                            decode, valFromObj, toJSObject, toJSString, fromJSString)
 import           Text.JSON.Pretty (pp_value)
 
 -- For easy pretty printing:
@@ -191,7 +191,9 @@ sqlQuery = error "sqlQuery"
 -- | Insert one or more rows into a table.  Rows are represented as lists of strings.
 -- The columns being written are passed in as a separate list.  The length of all
 -- rows must match eachother and must match the list of column names.
--- 
+--
+-- NOTE: this method has a major limitation.  SQL queries are encoded into the URL,
+-- and it is very easy to exceed the maximum URL length accepted by Google APIs.
 insertRows :: AccessToken -> TableId
               -> [FTString]   -- ^ Which columns to write.
               -> [[FTString]] -- ^ Rows 
@@ -221,19 +223,50 @@ insertRows tok tid cols rows = doRequest req
 -- | Implement a larger quantity of rows, but with the caveat that the number and order
 -- of columns must exactly match the schema of the fusion table on the server.
 -- `bulkImportRows` will perform a listing of the columns to verify this before uploading.
+--
+-- This function also checks that the server reports receiving the same number of
+-- rows as were uploaded.
+--
+-- NOTE: also use this function for LONG rows, even if there is only one.  Really,
+-- you should almost always use this function rather thna `insertRows`.
 bulkImportRows :: AccessToken -> TableId
               -> [FTString]   -- ^ Which columns to write.
               -> [[FTString]] -- ^ Rows 
               -> IO ()
 bulkImportRows tok tid cols rows = do 
-  -- listColumns
+  targetSchema <- fmap (map col_name) $ listColumns tok tid
 
-  let csv = "38"
-      req = appendBody (BL.pack csv)
+  unless (targetSchema == cols) $ 
+    error$ "bulkImportRows: upload schema (1) did not match server side schema (2):\n (1) "++
+           show cols ++"\n (2) " ++ show targetSchema
+
+  let csv = unlines rowlns -- (header : rowlns)  -- ARGH, they don't accept the header.
+                           -- All sanity checking must be client side [2013.11.30].
+      -- header = concat$ intersperse "," $ map show cols
+      rowlns = [ concat$ intersperse "," [ "\"" ++f++"\"" | f <- row ]
+               | row <- rows ]
+      req = appendBody (BL.pack csv) $ 
          (makeRequest tok fusiontableApi "POST"
-           (fusiontableHost, "fusiontables/v1/tables/"++tid++"/import" ))
-  
-  error "implement bulkImportRows"
+           (fusiontableHost, "upload/fusiontables/v1/tables/"++tid++"/import" ))
+         {
+           queryString = B.pack $ H.urlEncodeVars [("isStrict", "true")]
+         }
+  print req
+  resp <- doRequest req
+  print resp
+  let Ok received = parseResponse resp  
+  unless (received == length rows) $
+    error$ "attempted to upload "++show (length rows)++
+           " rows, but "++show received++" received by server."
+  return ()
+
+ where 
+   parseResponse :: JSValue -> Result Int
+   parseResponse (JSObject ob) = do
+   --  JS allTables <- valFromObj "items" ob
+--   JSString "fusiontables#import" <- valFromObj "kind" ob -- Sanity check.
+   JSString num <- valFromObj "numRowsReceived" ob 
+   return$ read$ fromJSString num
 
 
 -- TODO: provide some basic select functionality
