@@ -22,7 +22,7 @@ module Network.Google.FusionTables (
     TableId, TableMetadata(..), ColumnMetadata(..), CellType(..)
     
   -- * One-to-one wrappers around API routines, with parsing of JSON results
-  , createTable
+  , createTable, createColumn
   , listTables, listColumns
 --  , sqlQuery
     
@@ -119,6 +119,23 @@ createTable tok name cols =
      toJSObject [ ("name", str colName)
                 , ("kind", str "fusiontables#column")  
                 , ("type", str$ show colTy) ]
+   str = JSString . toJSString
+
+-- | Create a new column in a given table.  Returns the metadata for the new column.
+createColumn :: AccessToken -> TableId -> (FTString,CellType) -> IO ColumnMetadata
+createColumn tok tab_tableId (colName,colTy) =
+  do response <- doRequest req
+     let Ok final = parseColumn response
+     return final
+ where
+   req = appendHeaders [("Content-Type", "application/json")] $
+          appendBody (BL.pack json)
+          (makeRequest tok fusiontableApi "POST"
+            (fusiontableHost, "fusiontables/v1/tables/"++tab_tableId++"/columns" ))
+   json :: String
+   json = render$ pp_value$ JSObject$ toJSObject$
+          [ ("name",str colName)
+          , ("type",str$ show colTy) ]
    str = JSString . toJSString
 
 
