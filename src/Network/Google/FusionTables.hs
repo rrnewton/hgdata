@@ -251,9 +251,7 @@ bulkImportRows tok tid cols rows = do
          {
            queryString = B.pack $ H.urlEncodeVars [("isStrict", "true")]
          }
-  print req
   resp <- doRequest req
-  print resp
   let Ok received = parseResponse resp  
   unless (received == length rows) $
     error$ "attempted to upload "++show (length rows)++
