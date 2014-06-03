@@ -1,8 +1,9 @@
 name: handa-gdata
-version: 0.6.9.1
+version: 0.6.9.2
 cabal-version: >=1.6
 
 -- CHANGELOG:
+-- 0.6.9.2: Add FusionTables.tableSelect
 -- 0.6.2: Improve getCachedTokens
 -- 0.6.8: Add FusionTables.bulkImportRows
 -- 0.6.9: Add FusionTables.createColumn
