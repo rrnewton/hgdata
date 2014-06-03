@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.6.9
+version: 0.6.9.1
 cabal-version: >=1.6
 
 -- CHANGELOG:
@@ -90,7 +90,7 @@ library
                  , filepath          -any
                  , GenericPretty     >= 1.0.0
                  , HTTP              >= 4000.2.5
-                 , http-conduit      >= 1.9.0
+                 , http-conduit      >= 1.9.0 && < 2.0
                  , json              >= 0.5
                  , old-locale        -any
                  , pretty            -any
@@ -131,7 +131,7 @@ executable hgdata
                  , cmdargs           >= 0.9.4
                  , GenericPretty     >= 1.0.0
                  , HTTP              >= 4000.2.5
-                 , http-conduit      >= 1.9.0
+                 , http-conduit      >= 1.9.0 && < 2.0
                  , json              >= 0.5
                  , network           -any
                  , old-locale        -any
