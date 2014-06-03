@@ -1,4 +1,6 @@
 
+# The handa-gdata package - limited access to Google APIs
+
 This project provides a Haskell library and command-line interface for Google services such as Google Storage, Contacts, Books, etc. The package and on-line documentation is available from [Hackage](http://hackage.haskell.org/package/handa-gdata).
 
 For OAuth 2.0, the following operations are supported:
