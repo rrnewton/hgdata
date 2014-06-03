@@ -30,6 +30,10 @@ module Network.Google.FusionTables (
   , insertRows
     -- , filterRows
   , bulkImportRows
+    
+  -- js experimentation
+  , getData, ColData(..), FTValue(..), tableSelect
+             
 ) where
 
 import           Control.Monad (liftM, unless)
@@ -45,7 +49,7 @@ import           Text.XML.Light (Element(elContent), QName(..), filterChildrenNa
 -- TODO: Ideally this dependency wouldn't exist here and the user could select their
 -- own JSON parsing lib (e.g. Aeson).
 import           Text.JSON (JSObject(..), JSValue(..), Result(Ok,Error),
-                            decode, valFromObj, toJSObject, toJSString, fromJSString)
+                            decode, valFromObj, toJSObject, toJSString, fromJSString,readJSON)
 import           Text.JSON.Pretty (pp_value)
 
 -- For easy pretty printing:
@@ -286,3 +290,53 @@ bulkImportRows tok tid cols rows = do
 
 -- TODO: provide some basic select functionality
 filterRows = error "implement filterRows"
+
+--getData :: AccessToken
+--     -> String
+--     -> String
+--     -> Request m
+
+getData = tableSelect
+
+tableSelect token table_id str
+  = let req = (makeRequest token fusiontableApi "GET"
+              (fusiontableHost, "/fusiontables/v1/query"))
+              { 
+                queryString = B.pack$ H.urlEncodeVars [("sql",query)] 
+              } 
+        query = "SELECT " ++ str ++ " FROM " ++ table_id
+    in do resp <- doRequest req
+          case parseResponse resp of
+            Ok x -> return x
+            Error err -> error$ "getData: failed to parse JSON response:\n"++err
+  where
+    parseResponse :: JSValue -> Result ColData
+    parseResponse (JSArray as) = Error "GOT ARRAY EARLY" 
+    parseResponse (JSObject ob) = do
+      -- get array of column names (headings) 
+      (JSArray cols)  <- valFromObj "columns" ob
+      let colNom = map (\(JSString s) -> fromJSString s) cols 
+      -- Get array of array of data values 
+      (JSArray rows)  <- valFromObj "rows" ob
+      rows' <- mapM parseVal' rows 
+      return $ ColData colNom rows'
+    parseVal' (JSArray ar) = mapM parseVal ar 
+    parseVal :: JSValue -> Result FTValue
+    parseVal r@(JSRational _ _) = do
+      d <- readJSON r
+      return $ DoubleValue d
+    parseVal (JSString s)     = return $ StringValue $ fromJSString s 
+    
+    parseVal _ = Error "I imagined there'd be Rationals here"  
+
+
+data FTValue = StringValue FTString 
+             | DoubleValue Double
+             deriving Show 
+               
+
+
+data ColData = ColData {colName :: [FTString],
+                        values  :: [[FTValue]]}
+               deriving Show
+
