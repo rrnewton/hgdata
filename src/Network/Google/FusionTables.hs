@@ -298,13 +298,15 @@ filterRows = error "implement filterRows"
 
 getData = tableSelect
 
-tableSelect token table_id str
+tableSelect token table_id str cond
   = let req = (makeRequest token fusiontableApi "GET"
               (fusiontableHost, "/fusiontables/v1/query"))
               { 
                 queryString = B.pack$ H.urlEncodeVars [("sql",query)] 
               } 
-        query = "SELECT " ++ str ++ " FROM " ++ table_id
+        query = case cond of
+                  Nothing -> "SELECT " ++ str ++ " FROM " ++ table_id 
+                  Just c  -> "SELECT " ++ str ++ " FROM " ++ table_id ++ " WHERE " ++ c
     in do resp <- doRequest req
           case parseResponse resp of
             Ok x -> return x
