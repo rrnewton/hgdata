@@ -355,7 +355,8 @@ getCachedTokens client = do
    -- This is the part where we require user interaction:
    askUser = do 
      putStrLn$ " [getCachedTokens] Load this URL: "++show permissionUrl
-     runBrowser 
+     -- BJS: This crash on my machine. 
+     -- runBrowser 
      putStrLn " [getCachedTokens] Then please paste the verification code and press enter:\n$ "
      authcode <- getLine
      tokens   <- exchangeCode client authcode

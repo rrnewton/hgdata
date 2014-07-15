@@ -332,11 +332,11 @@ tableSelect token table_id str
 
 data FTValue = StringValue FTString 
              | DoubleValue Double
-             deriving Show 
+             deriving (Eq, Show )
                
 
 
 data ColData = ColData {colName :: [FTString],
                         values  :: [[FTValue]]}
-               deriving Show
+               deriving (Eq, Show)
 
