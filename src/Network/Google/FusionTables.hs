@@ -33,6 +33,7 @@ module Network.Google.FusionTables (
     
   -- js experimentation
   , getData, ColData(..), FTValue(..), tableSelect
+  , tableSQLQuery
              
 ) where
 
@@ -296,17 +297,62 @@ filterRows = error "implement filterRows"
 --     -> String
 --     -> Request m
 
+-- these need type signatures
+
 getData = tableSelect
 
-tableSelect token table_id str cond
+-- tableSelect token table_id str cond
+--   = let req = (makeRequest token fusiontableApi "GET"
+--               (fusiontableHost, "/fusiontables/v1/query"))
+--               { 
+--                 queryString = B.pack$ H.urlEncodeVars [("sql",query)] 
+--               } 
+--         query = case cond of
+--                   Nothing -> "SELECT " ++ str ++ " FROM " ++ table_id 
+--                   Just c  -> "SELECT " ++ str ++ " FROM " ++ table_id ++ " WHERE " ++ c
+--     in do resp <- doRequest req
+--           case parseResponse resp of
+--             Ok x -> return x
+--             Error err -> error$ "getData: failed to parse JSON response:\n"++err
+--   where
+--     parseResponse :: JSValue -> Result ColData
+--     parseResponse (JSArray as) = Error "GOT ARRAY EARLY" 
+--     parseResponse (JSObject ob) = do
+--       -- get array of column names (headings) 
+--       (JSArray cols)  <- valFromObj "columns" ob
+--       let colNom = map (\(JSString s) -> fromJSString s) cols 
+--       -- Get array of array of data values 
+--       (JSArray rows)  <- valFromObj "rows" ob
+--       rows' <- mapM parseVal' rows 
+--       return $ ColData colNom rows'
+--     parseVal' (JSArray ar) = mapM parseVal ar 
+--     parseVal :: JSValue -> Result FTValue
+--     parseVal r@(JSRational _ _) = do
+--       d <- readJSON r
+--       return $ DoubleValue d
+--     parseVal (JSString s)     = return $ StringValue $ fromJSString s 
+    
+--     parseVal _ = Error "I imagined there'd be Rationals here"  
+
+-- Leave this here for backwards compat
+tableSelect token table_id str cond =
+  tableSQLQuery token table_id query
+  where
+    query =
+      case cond of
+        Nothing -> "SELECT " ++ str ++ " FROM " ++ table_id 
+        Just c  -> "SELECT " ++ str ++ " FROM " ++ table_id ++ " WHERE " ++ c
+
+-- 
+tableSQLQuery token table_id query
   = let req = (makeRequest token fusiontableApi "GET"
               (fusiontableHost, "/fusiontables/v1/query"))
               { 
                 queryString = B.pack$ H.urlEncodeVars [("sql",query)] 
               } 
-        query = case cond of
-                  Nothing -> "SELECT " ++ str ++ " FROM " ++ table_id 
-                  Just c  -> "SELECT " ++ str ++ " FROM " ++ table_id ++ " WHERE " ++ c
+        -- query = case cond of
+        --           Nothing -> "SELECT " ++ str ++ " FROM " ++ table_id 
+        --           Just c  -> "SELECT " ++ str ++ " FROM " ++ table_id ++ " WHERE " ++ c
     in do resp <- doRequest req
           case parseResponse resp of
             Ok x -> return x
