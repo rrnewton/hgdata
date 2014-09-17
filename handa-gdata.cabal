@@ -93,6 +93,7 @@ library
                  , GenericPretty     >= 1.0.0
                  , HTTP              >= 4000.2.5
                  , http-conduit      >= 1.9.0 && < 2.0
+                 , network-uri       == 2.6.0.1
                  , json              >= 0.5
                  , old-locale        -any
                  , pretty            -any
