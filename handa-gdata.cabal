@@ -136,7 +136,7 @@ executable hgdata
                  , HTTP              >= 4000.2.5
                  , http-conduit      >= 1.9.0 && < 2.0
                  , json              >= 0.5
-                 , network           == 2.5.0.0, 
+                 , network           == 2.5.0.0 
                  , old-locale        -any
                  , pretty            -any
                  , process           >= 1.1.0.2
