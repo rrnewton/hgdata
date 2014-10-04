@@ -297,8 +297,11 @@ filterRows = error "implement filterRows"
 --     -> String
 --     -> Request m
 
--- these need type signatures
-
+getData :: AccessToken 
+        -> String -- ^ Table ID
+        -> String -- ^ The SQL expression following "SELECT"
+        -> Maybe String -- ^ Optional expression to follow "WHERE"
+        -> IO ColData
 getData = tableSelect
 
 -- tableSelect token table_id str cond
@@ -335,6 +338,11 @@ getData = tableSelect
 --     parseVal _ = Error "I imagined there'd be Rationals here"  
 
 -- Leave this here for backwards compat
+tableSelect :: AccessToken 
+            -> String -- ^ Table ID
+            -> String -- ^ The SQL expression following "SELECT"
+            -> Maybe String -- ^ Optional expression to follow "WHERE"
+            -> IO ColData
 tableSelect token table_id str cond =
   tableSQLQuery token table_id query
   where
@@ -343,7 +351,11 @@ tableSelect token table_id str cond =
         Nothing -> "SELECT " ++ str ++ " FROM " ++ table_id 
         Just c  -> "SELECT " ++ str ++ " FROM " ++ table_id ++ " WHERE " ++ c
 
--- 
+-- | Run a supported SQL query to retrieve data from a fusion table.
+tableSQLQuery :: AccessToken 
+              -> String -- ^ Table ID
+              -> String -- ^ Complete SQL expression.
+              -> IO ColData
 tableSQLQuery token table_id query
   = let req = (makeRequest token fusiontableApi "GET"
               (fusiontableHost, "/fusiontables/v1/query"))
