@@ -38,6 +38,7 @@ module Network.Google (
 import qualified Control.Exception as E
 import Control.Concurrent (threadDelay)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Data.Default
 import Data.List (intercalate)
 import Data.Maybe (fromJust)
 import Data.ByteString as BS (ByteString)
@@ -46,8 +47,8 @@ import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Manager, Request(..), RequestBody(..), Response(..), HttpException, 
-                             closeManager, def, httpLbs, newManager, responseBody)
+import Network.HTTP.Conduit (Manager, ManagerSettings, mkManagerSettings, Request(..), RequestBody(..), Response(..), HttpException, 
+                             closeManager, httpLbs, newManager, responseBody)
 import Text.JSON (JSValue, Result(Ok), decode)
 import Text.XML.Light (Element, parseXMLDoc)
 
@@ -72,7 +73,7 @@ makeRequest ::
   -> (String, String)  -- ^ The Google API name and version.
   -> String            -- ^ The HTTP method.
   -> (String, String)  -- ^ The host and path for the request.
-  -> Request m         -- ^ The HTTP request.
+  -> Request           -- ^ The HTTP request.
 makeRequest accessToken (apiName, apiVersion) method (host, path) =
   -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
   def {
@@ -95,7 +96,7 @@ makeProjectRequest ::
   -> (String, String)  -- ^ The Google API name and version.
   -> String            -- ^ The HTTP method.
   -> (String, String)  -- ^ The host and path for the request.
-  -> Request m         -- ^ The HTTP request.
+  -> Request           -- ^ The HTTP request.
 makeProjectRequest projectId accessToken api method hostPath =
   appendHeaders
     [
@@ -108,17 +109,17 @@ makeProjectRequest projectId accessToken api method hostPath =
 class DoRequest a where
   -- | Perform a request.
   doRequest ::
-       Request (ResourceT IO)  -- ^ The request.
+       Request                 -- ^ The request.
     -> IO a                    -- ^ The action returning the result of performing the request.
   doRequest request =
     do
-      manager <- newManager def
+      manager <- newManager (mkManagerSettings def Nothing)
       E.finally
         (doManagedRequest manager request)
         (closeManager manager)
   doManagedRequest ::
        Manager                 -- ^ The conduit HTTP manager.
-    -> Request (ResourceT IO)  -- ^ The request.
+    -> Request                 -- ^ The request.
     -> IO a                    -- ^ The action returning the result of performing the request.
 
 
@@ -193,8 +194,8 @@ makeHeaderValue = BS8.pack
 -- | Append headers to a request.
 appendHeaders ::
      [(String, String)]  -- ^ The (name\/key, value) pairs for the headers.
-  -> Request m           -- ^ The request.
-  -> Request m           -- ^ The request with the additional headers.
+  -> Request             -- ^ The request.
+  -> Request             -- ^ The request with the additional headers.
 appendHeaders headers request =
   let
     headerize :: (String, String) -> (CI.CI BS8.ByteString, BS8.ByteString)
@@ -208,8 +209,8 @@ appendHeaders headers request =
 -- | Append a body to a request.
 appendBody ::
      LBS8.ByteString  -- ^ The data for the body.
-  -> Request m        -- ^ The request.
-  -> Request m        -- ^ The request with the body appended.
+  -> Request          -- ^ The request.
+  -> Request          -- ^ The request with the body appended.
 appendBody bytes request =
   request {
     requestBody = RequestBodyLBS bytes
@@ -219,8 +220,8 @@ appendBody bytes request =
 -- | Append a query to a request.
 appendQuery ::
      [(String, String)]  -- ^ The query keys and values.
-  -> Request m           -- ^ The request.
-  -> Request m           -- ^ The request with the query appended.
+  -> Request             -- ^ The request.
+  -> Request             -- ^ The request with the query appended.
 appendQuery query request =
   let
     makeParameter :: (String, String) -> String

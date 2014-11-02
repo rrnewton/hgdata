@@ -141,7 +141,7 @@ getServiceUsingManager = getServiceImpl . doManagedRequest
 
 -- | List all of the buckets in a specified project.  This performs the \"GET Service\" request, see <https://developers.google.com/storage/docs/reference-methods#getservice>.
 getServiceImpl ::
-     (Request (ResourceT IO) -> IO Element)  -- ^ The function for performing the request.
+     (Request -> IO Element)                 -- ^ The function for performing the request.
   -> ProjectId                               -- ^ The project ID.
   -> AccessToken                             -- ^ The OAuth 2.0 access token.
   -> IO Element                              -- ^ The action returning the XML with the metadata for the buckets.
@@ -175,7 +175,7 @@ putBucketUsingManager = putBucketImpl . doManagedRequest
 
 -- | Creates a bucket in a specified project.  This performs the \"PUT Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#putbucket>.
 putBucketImpl ::
-     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+     (Request -> IO [(String, String)])                 -- ^ The function for performing the request.
   -> ProjectId                                          -- ^ The project ID.
   -> StorageAcl                                         -- ^ The pre-defined access control.
   -> BucketName                                         -- ^ The bucket.
@@ -213,7 +213,7 @@ getBucketUsingManager = getBucketImpl . doManagedRequest
 
 -- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
 getBucketImpl ::
-     (Request (ResourceT IO) -> IO Element)  -- ^ The function for performing the request.
+     (Request -> IO Element)                 -- ^ The function for performing the request.
   -> ProjectId                               -- ^ The project ID.
   -> BucketName                              -- ^ The bucket.
   -> AccessToken                             -- ^ The OAuth 2.0 access token.
@@ -228,7 +228,7 @@ getBucketImpl doer projectId bucket accessToken =
 
 -- | Lists the objects that are in a bucket.  This performs the \"GET Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#getbucket>.
 getBucketImpl' ::
-     (Request (ResourceT IO) -> IO Element)  -- ^ The function for performing the request.
+     (Request -> IO Element)                 -- ^ The function for performing the request.
   -> Maybe KeyName                           -- ^ The key to start listing at.
   -> ProjectId                               -- ^ The project ID.
   -> BucketName                              -- ^ The bucket.
@@ -274,7 +274,7 @@ deleteBucketUsingManager = deleteBucketImpl . doManagedRequest
 
 -- | Deletes an empty bucket.  This performs the \"DELETE Bucket\" request, see <https://developers.google.com/storage/docs/reference-methods#deletebucket>.
 deleteBucketImpl ::
-     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+     (Request -> IO [(String, String)])                 -- ^ The function for performing the request.
   -> ProjectId                                          -- ^ The project ID.
   -> BucketName                                         -- ^ The bucket.
   -> AccessToken                                        -- ^ The OAuth 2.0 access token.
@@ -309,7 +309,7 @@ getObjectUsingManager = getObjectImpl . doManagedRequest
 
 -- | Downloads an object.  This performs the \"GET Object\" request, see <https://developers.google.com/storage/docs/reference-methods#getobject>.
 getObjectImpl ::
-     (Request (ResourceT IO) -> IO ByteString)  -- ^ The function performing the action.
+     (Request -> IO ByteString)                 -- ^ The function performing the action.
   -> ProjectId                                  -- ^ The project ID.
   -> BucketName                                 -- ^ The bucket.
   -> KeyName                                    -- ^ The object's key.
@@ -357,7 +357,7 @@ putObjectUsingManager = putObjectImpl . doManagedRequest
 
 -- | Uploads an object.  This performs the \"PUT Object\" request, see <https://developers.google.com/storage/docs/reference-methods#putobject>.
 putObjectImpl ::
-     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+     (Request -> IO [(String, String)])                 -- ^ The function for performing the request.
   -> ProjectId                                          -- ^ The project ID.
   -> StorageAcl                                         -- ^ The pre-defined access control.
   -> BucketName                                         -- ^ The bucket.
@@ -407,7 +407,7 @@ headObjectUsingManager = headObjectImpl . doManagedRequest
 
 -- | Lists metadata for an object.  This performs the \"HEAD Object\" request, see <https://developers.google.com/storage/docs/reference-methods#headobject>.
 headObjectImpl ::
-     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+     (Request -> IO [(String, String)])                 -- ^ The function for performing the request.
   -> ProjectId                                          -- ^ The project ID.
   -> BucketName                                         -- ^ The bucket.
   -> KeyName                                            -- ^ The object's key.
@@ -443,7 +443,7 @@ deleteObjectUsingManager = deleteObjectImpl . doManagedRequest
 
 -- | Deletes an object.  This performs the \"DELETE Object\" request, see <https://developers.google.com/storage/docs/reference-methods#deleteobject>.
 deleteObjectImpl ::
-     (Request (ResourceT IO) -> IO [(String, String)])  -- ^ The function for performing the request.
+     (Request -> IO [(String, String)])                 -- ^ The function for performing the request.
   -> ProjectId                                          -- ^ The project ID.
   -> BucketName                                         -- ^ The bucket.
   -> KeyName                                            -- ^ The object's key.

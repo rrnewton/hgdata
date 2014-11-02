@@ -22,10 +22,11 @@ module Network.Google.Contacts (
 
 import Control.Monad ((<=<), (>>), liftM)
 import Crypto.GnuPG (Recipient, decrypt, encrypt)
+import Data.Default (def)
 import Data.List (stripPrefix)
 import Data.Maybe (fromJust, fromMaybe, mapMaybe)
 import Network.Google (AccessToken, doRequest, makeRequest, makeRequestValue)
-import Network.HTTP.Conduit (Request(..), def, httpLbs, responseBody, withManager)
+import Network.HTTP.Conduit (Request(..), httpLbs, responseBody, withManager)
 import Text.XML.Light (Element, elChildren, filterChildName, parseXMLDoc, qName, strContent)
 
 
@@ -53,7 +54,7 @@ listContacts accessToken =
 -- | Make an HTTP request to list the contacts.
 listContactsRequest ::
      AccessToken  -- ^ The OAuth 2.0 access token.
-  -> Request m    -- ^ The request.
+  -> Request      -- ^ The request.
 listContactsRequest accessToken =
   (makeRequest accessToken contactsApi "GET" (contactsHost, "/m8/feeds/contacts/default/full/"))
   {
