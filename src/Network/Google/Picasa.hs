@@ -111,7 +111,7 @@ picasaFeedRequest ::
      AccessToken    -- ^ The OAuth 2.0 access token.
   -> UserId         -- ^ The user ID for the photos.
   -> Maybe AlbumId  -- ^ The album ID for the photos.
-  -> Request m      -- ^ The request.
+  -> Request        -- ^ The request.
 picasaFeedRequest accessToken userId albumId =
   makeRequest accessToken picasaApi "GET"
     (

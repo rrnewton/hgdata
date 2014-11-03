@@ -156,7 +156,7 @@ booksRequest ::
      AccessToken    -- ^ The OAuth 2.0 access token.
   -> Maybe ShelfId  -- ^ The bookshelf ID.
   -> Int            -- ^ The starting index
-  -> Request m      -- ^ The request.
+  -> Request        -- ^ The request.
 booksRequest accessToken shelf startIndex =
   appendQuery
     [

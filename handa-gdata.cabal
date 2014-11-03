@@ -88,11 +88,12 @@ library
                  , binary            >= 0.5.1.1
                  , bytestring        >= 0.10.0.2
                  , case-insensitive  >= 0.2
+                 , data-default      -any
                  , directory         -any
                  , filepath          -any
                  , GenericPretty     >= 1.0.0
                  , HTTP              >= 4000.2.5
-                 , http-conduit      >= 1.9.0 && < 2.0
+                 , http-conduit      >= 2
                  , network           == 2.5.0.0
                  , json              >= 0.5
                  , old-locale        -any
@@ -134,7 +135,7 @@ executable hgdata
                  , cmdargs           >= 0.9.4
                  , GenericPretty     >= 1.0.0
                  , HTTP              >= 4000.2.5
-                 , http-conduit      >= 1.9.0 && < 2.0
+                 , http-conduit      >= 2
                  , json              >= 0.5
                  , network           == 2.5.0.0 
                  , old-locale        -any
