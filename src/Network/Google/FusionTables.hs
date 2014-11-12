@@ -368,7 +368,8 @@ tableSQLQuery token table_id query
     in do resp <- doRequest req
           case parseResponse resp of
             Ok x -> return x
-            Error err -> error$ "getData: failed to parse JSON response:\n"++err
+            Error err -> error$ "getData: failed to parse JSON response:\n"++err++
+                         "\n Full JSON:\n"++show resp
   where
     parseResponse :: JSValue -> Result ColData
     parseResponse (JSArray as) = Error "GOT ARRAY EARLY" 
