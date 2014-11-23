@@ -88,7 +88,7 @@ library
                  , binary            >= 0.5.1.1
                  , bytestring        >= 0.10.0.2
                  , case-insensitive  >= 0.2
-                 , data-default      -any
+                 , data-default      >= 0.5.3
                  , directory         -any
                  , filepath          -any
                  , GenericPretty     >= 1.0.0
