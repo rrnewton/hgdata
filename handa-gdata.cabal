@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.6.9.4
+version: 0.7
 cabal-version: >=1.6
 
 -- CHANGELOG:
@@ -8,7 +8,7 @@ cabal-version: >=1.6
 -- 0.6.9: Add FusionTables.createColumn
 -- 0.6.9.2: Add FusionTables.tableSelect
 -- 0.6.9.3: tableSQLQuery
--- 0.6.9.4: http-conduit 2.0+ support
+-- 0.7: change the API for http-conduit 2.0+ support
 
 build-type: Simple
 license: MIT
