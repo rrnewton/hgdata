@@ -293,7 +293,7 @@ validateTokens tokens =
     return expiresIn'
 
 
--- | Provide a hassle-free way to retrieve and refresh tokens from a users home
+-- | Provide a hassle-free way to retrieve and refresh tokens from a user's home
 -- directory, OR ask the user for permission.
 -- 
 -- The first time it is called, this may open a web-browser, and/or request the user
