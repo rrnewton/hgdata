@@ -33,7 +33,7 @@ import Data.List ((\\), sort)
 import Data.Maybe (catMaybes, fromJust, fromMaybe, mapMaybe)
 import Data.Time.Clock (UTCTime, addUTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.Format (parseTime, defaultTimeLocale)
+import Data.Time.Format (parseTimeM, defaultTimeLocale)
 import Network.Google (AccessToken, ProjectId, toAccessToken)
 import Network.Google.OAuth2 (OAuth2Client(..), OAuth2Tokens(..), refreshTokens, validateTokens)
 import Network.Google.Storage (BucketName, KeyName, MIMEType, StorageAcl, deleteObjectUsingManager, getBucketUsingManager, putObjectUsingManager)
@@ -322,7 +322,7 @@ parseMetadata root =
         eTag <- finder "ETag" element
         size <- finder "Size" element
         lastModified <- finder "LastModified" element
-        return $ ObjectMetadata key (tail . init $ eTag, undefined) (read size) (fromJust $ parseTime defaultTimeLocale "%FT%T%QZ" lastModified)
+        return $ ObjectMetadata key (tail . init $ eTag, undefined) (read size) (fromJust $ (parseTimeM True) defaultTimeLocale "%FT%T%QZ" lastModified)
   in
     mapMaybe makeMetadata $ filterChildrenName (("Contents" ==) . qName) root
 
