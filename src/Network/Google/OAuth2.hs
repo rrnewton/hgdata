@@ -21,7 +21,7 @@
 -- access Google data.
 --
 -- Below is a quick-start program which will list any Google Fusion tables the user
--- possesses.  It requires the client ID and secret retrieved from 
+-- possesses.  It requires the client ID and secret retrieved from
 -- <https://code.google.com/apis/console>.
 --
 -- @
@@ -38,13 +38,13 @@
 -- cid    = \"INSTALLED_APP_CLIENT_ID\"
 -- secret = \"INSTALLED_APP_SECRET_HERE\"
 -- file   = \"./tokens.txt\"
--- --  
+-- --
 -- main = do
 --   -- Ask for permission to read/write your fusion tables:
 --   let client = OAuth2Client { clientId = cid, clientSecret = secret }
 --       permissionUrl = formUrl client [\"https://www.googleapis.com/auth/fusiontables\"]
 --   b <- doesFileExist file
---   unless b $ do 
+--   unless b $ do
 --       putStrLn$ \"Load this URL: \"++show permissionUrl
 --       case os of
 --         \"linux\"  -> rawSystem \"gnome-open\" [permissionUrl]
@@ -91,7 +91,7 @@ import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Data.Word (Word64)
 import Network.Google (makeHeaderName)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), httpLbs, responseBody, withManager)
+import Network.HTTP.Conduit (Request(..), RequestBody(..), Response(..), defaultRequest, httpLbs, responseBody, withManager)
 import Text.JSON (JSObject, JSValue(JSRational), Result(Ok), decode, valFromObj)
 import System.Info    (os)
 import System.Process (rawSystem)
@@ -248,7 +248,7 @@ doOAuth2 client grantType extraBody =
     let
       -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
       request =
-        def {
+        defaultRequest {
           method = BS8.pack "POST"
         , secure = True
         , host = BS8.pack "accounts.google.com"
@@ -277,7 +277,7 @@ validateTokens tokens =
   do
     let
       request =
-        def {
+        defaultRequest {
           method = BS8.pack "GET"
         , secure = True
         , host = BS8.pack "www.googleapis.com"
@@ -295,7 +295,7 @@ validateTokens tokens =
 
 -- | Provide a hassle-free way to retrieve and refresh tokens from a user's home
 -- directory, OR ask the user for permission.
--- 
+--
 -- The first time it is called, this may open a web-browser, and/or request the user
 -- enter data on the command line.  Subsequently, invocations on the same machine
 -- should not communicate with the user.
@@ -305,14 +305,14 @@ validateTokens tokens =
 -- immaterial to the clients subsequent actions, because all clients should handle
 -- authentication errors (and all 5xx errors) and call `refreshToken` as necessary.
 getCachedTokens :: OAuth2Client -- ^ The client is the \"key\" for token lookup.
-                -> IO OAuth2Tokens 
-getCachedTokens client = do 
+                -> IO OAuth2Tokens
+getCachedTokens client = do
    cabalD <- getAppUserDataDirectory "cabal"
    let tokenD = cabalD </> "googleAuthTokens"
        tokenF = tokenD </> clientId client <.> "token"
-   d1       <- doesDirectoryExist cabalD     
+   d1       <- doesDirectoryExist cabalD
    unless d1 $ createDirectory cabalD -- Race.
-   d2       <- doesDirectoryExist tokenD 
+   d2       <- doesDirectoryExist tokenD
    unless d2 $ createDirectory tokenD -- Race.
    f1       <- doesFileExist tokenF
    if f1 then do
@@ -325,19 +325,19 @@ getCachedTokens client = do
         [] -> do
           putStrLn$" [getCachedTokens] Could not read tokens from file: "++ tokenF
           putStrLn$" [getCachedTokens] Removing tokens and re-authenticating..."
-          removeFile tokenF 
+          removeFile tokenF
           getCachedTokens client
-    else do 
+    else do
      toks <- askUser
      fmap snd$ timeStampAndWrite tokenF toks
- where   
+ where
    -- Tokens store a relative time, which is rather silly (relative to what?).  This
    -- routine tags a token with the time it was issued, so as to enable figuring out
    -- the absolute expiration time.  Also, as a side effect, this is where we refresh
    -- the token if it is already expired or expiring soon.
    checkExpiry :: FilePath -> (Rational, OAuth2Tokens) -> IO (Rational, OAuth2Tokens)
    checkExpiry tokenF orig@(start1,toks1) = do
-     t <- getCurrentTime 
+     t <- getCurrentTime
      let nowsecs = toRational (utcTimeToPOSIXSeconds t)
          expire1 = start1 + expiresIn toks1
          tolerance = 15 * 60 -- Skip refresh if token is good for at least 15 min.
@@ -347,17 +347,17 @@ getCachedTokens client = do
       else return orig
 
    timeStampAndWrite :: FilePath -> OAuth2Tokens -> IO (Rational, OAuth2Tokens)
-   timeStampAndWrite tokenF toks = do 
-       t2 <- getCurrentTime       
+   timeStampAndWrite tokenF toks = do
+       t2 <- getCurrentTime
        let tagged = (toRational (utcTimeToPOSIXSeconds t2), toks)
        atomicWriteFile tokenF (show tagged)
        return tagged
 
    -- This is the part where we require user interaction:
-   askUser = do 
+   askUser = do
      putStrLn$ " [getCachedTokens] Load this URL: "++show permissionUrl
-     -- BJS: This crash on my machine. 
-     -- runBrowser 
+     -- BJS: This crash on my machine.
+     -- runBrowser
      putStrLn " [getCachedTokens] Then please paste the verification code and press enter:\n$ "
      authcode <- getLine
      tokens   <- exchangeCode client authcode
@@ -366,17 +366,17 @@ getCachedTokens client = do
 
    permissionUrl = formUrl client ["https://www.googleapis.com/auth/fusiontables"]
 
-   -- This is hackish and incomplete 
+   -- This is hackish and incomplete
    runBrowser =
       case os of
         "linux"  -> rawSystem "gnome-open" [permissionUrl]
         "darwin" -> rawSystem "open"       [permissionUrl]
         _        -> return ExitSuccess
 
-   atomicWriteFile file str = do 
+   atomicWriteFile file str = do
      suff <- randomIO :: IO Word64
      let (root,ext) = splitExtension file
-         tmp = root ++ show suff <.> ext     
+         tmp = root ++ show suff <.> ext
      writeFile tmp str
      -- RenameFile makes this atomic:
      renameFile tmp file

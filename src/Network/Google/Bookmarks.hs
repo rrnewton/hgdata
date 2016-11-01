@@ -31,7 +31,7 @@ import Data.Default (def)
 import Data.Maybe (fromJust)
 import Data.Time.Clock (getCurrentTime)
 import Network.Google (appendHeaders)
-import Network.HTTP.Conduit (CookieJar, Request(..), RequestBody(..), Response(..), httpLbs, parseUrl, withManager)
+import Network.HTTP.Conduit (CookieJar, Request(..), RequestBody(..), Response(..), defaultRequest, httpLbs, parseUrl, withManager)
 import Text.XML.Light (Element(..), QName(..), blank_name, filterElement, findAttr, parseXMLDoc)
 
 
@@ -77,7 +77,7 @@ listBookmarks email password smsToken =
             ++ "&PersistentCookie=yes"
           , cookieJar = Just cookieJarGet1
           , redirectCount = 0
-          , checkStatus = \_ _ _ -> Nothing
+          , checkResponse = \_ _ -> return ()
           }
       responsePost1 <- httpLbs requestPost1 manager
       let
@@ -93,7 +93,7 @@ listBookmarks email password smsToken =
             ++ "&PersistentCookie=yes"
           , cookieJar = Just cookieJarPost1
           , redirectCount = 0
-          , checkStatus = \_ _ _ -> Nothing
+          , checkResponse = \_ _ -> return ()
           }
       responsePost2 <- httpLbs requestPost2 manager
       let
@@ -116,7 +116,7 @@ listBookmarks email password smsToken =
 accountsPostRequest :: String -> Request
 accountsPostRequest path =
   appendHeaders [("Content-Type", "application/x-www-form-urlencoded")] $
-  def {
+  defaultRequest {
     method = BS8.pack "POST"
   , secure = True
   , host = BS8.pack "accounts.google.com"
