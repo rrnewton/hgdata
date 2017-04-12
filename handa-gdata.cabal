@@ -97,7 +97,7 @@ library
                  , filepath          -any
                  , GenericPretty     >= 1.0.0
                  , HTTP              >= 4000.2.5
-                 , http-conduit      >= 2
+                 , http-conduit      >= 2.2.0
                  , network           >= 2.5.0.0
                  , json              >= 0.5
                  , old-locale        -any

@@ -47,8 +47,8 @@ import Data.ByteString.Lazy.Char8 as LBS8 (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Data.CaseInsensitive as CI (CI(..), mk)
 import Network.HTTP.Base (urlEncode)
-import Network.HTTP.Conduit (Manager, ManagerSettings, mkManagerSettings, Request(..), RequestBody(..), Response(..), HttpException, 
-                             closeManager, httpLbs, newManager, responseBody)
+import Network.HTTP.Conduit (Manager, ManagerSettings, mkManagerSettings, Request(..), RequestBody(..), Response(..), HttpException,
+                             closeManager, defaultRequest, httpLbs, newManager, responseBody)
 import Text.JSON (JSValue, Result(Ok), decode)
 import Text.XML.Light (Element, parseXMLDoc)
 
@@ -76,7 +76,7 @@ makeRequest ::
   -> Request           -- ^ The HTTP request.
 makeRequest accessToken (apiName, apiVersion) method (host, path) =
   -- TODO: In principle, we should UTF-8 encode the bytestrings packed below.
-  def {
+  defaultRequest {
     method = BS8.pack method
   , secure = True
   , host = BS8.pack host
@@ -239,7 +239,7 @@ appendQuery query request =
 -- | Takes an idempotent IO action that includes a network request.  Catches
 -- `HttpException`s and tries a gain a certain number of times.  The second argument
 -- is a callback to invoke every time a retry occurs.
--- 
+--
 -- Takes a list of *seconds* to wait between retries.  A null list means no retries,
 -- an infinite list will retry indefinitely.  The user can choose whatever temporal
 -- pattern they desire (e.g. exponential backoff).
@@ -250,8 +250,8 @@ retryIORequest :: IO a -> (HttpException -> IO ()) -> [Double] -> IO a
 retryIORequest req retryHook = loop
   where
     loop [] = req
-    loop (delay:tl) = 
-      E.catch req $ \ (exn::HttpException) -> do 
+    loop (delay:tl) =
+      E.catch req $ \ (exn::HttpException) -> do
         retryHook exn
         threadDelay (round$ delay * 1000 * 1000) -- Microseconds
         loop tl
