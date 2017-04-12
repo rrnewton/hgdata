@@ -1,5 +1,5 @@
 name: handa-gdata
-version: 0.7.0.3
+version: 0.7.0.4
 cabal-version: >=1.6
 
 -- CHANGELOG:
@@ -10,6 +10,7 @@ cabal-version: >=1.6
 -- 0.6.9.3: tableSQLQuery
 -- 0.7: change the API for http-conduit 2.0+ support
 -- 0.7.0.3: Minor change for GHC 7.10 and time-1.5
+-- 0.7.0.4: Minor change for time-1.5
 
 build-type: Simple
 license: MIT
